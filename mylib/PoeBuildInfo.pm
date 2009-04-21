@@ -1,4 +1,4 @@
-# $Id: PoeBuildInfo.pm 2510 2009-03-27 20:17:27Z rcaputo $
+# $Id: PoeBuildInfo.pm 2524 2009-04-21 04:01:03Z rcaputo $
 # rocco // vim: ts=2 sw=2 expandtab
 
 # Build information for POE.  Moved into a library so it can be
@@ -20,6 +20,7 @@ use vars qw(@EXPORT_OK);
   DIST_AUTHOR
   RECOMMENDED_TIME_HIRES
   CONFIG_REQUIREMENTS
+  REPOSITORY
 );
 
 
@@ -36,7 +37,6 @@ sub CORE_REQUIREMENTS () {
     "Exporter"          => 0,
     "File::Spec"        => 0.87,
     "IO::Handle"        => 1.27,
-    "IO::Tty"           => 1.08, # avoids crashes on fbsd
     "POSIX"             => 1.02,
     "Socket"            => 1.7,
     "Test::Harness"     => 2.26,
@@ -47,7 +47,9 @@ sub CORE_REQUIREMENTS () {
         "Win32::Console" => 0.031,
         "Win32API::File" => 0.05,
       )
-      : ()
+      : (
+        "IO::Tty"        => 1.08, # avoids crashes on fbsd
+      )
     ),
     CONFIG_REQUIREMENTS,
   )
@@ -90,6 +92,10 @@ sub TEST_FILES () {
     t/*/*/*.t
   );
   "@test_files";
+}
+
+sub REPOSITORY () {
+  ( 'https://poe.svn.sourceforge.net/svnroot/poe/trunk' )
 }
 
 1;

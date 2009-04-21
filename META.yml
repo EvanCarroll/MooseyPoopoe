@@ -1,6 +1,6 @@
 ---
 name: POE
-version: 1.004
+version: 1.005
 author:
   - 'Rocco Caputo <rcaputo@cpan.org>'
 abstract: A portable networking and multitasking framework.
@@ -34,7 +34,7 @@ meta-spec:
 provides:
   POE:
     file: lib/POE.pm
-    version: 1.004
+    version: 1.005
   POE::Component:
     file: lib/POE/Component.pm
     version: 1.2447
@@ -160,7 +160,7 @@ provides:
     version: 1.2447
   POE::Session:
     file: lib/POE/Session.pm
-    version: 1.2489
+    version: 1.2523
   POE::Wheel:
     file: lib/POE/Wheel.pm
     version: 1.2447
@@ -189,3 +189,4 @@ provides:
     version: 1.2485
 resources:
   license: http://dev.perl.org/licenses/
+  repository: https://poe.svn.sourceforge.net/svnroot/poe/trunk

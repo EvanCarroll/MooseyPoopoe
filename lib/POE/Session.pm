@@ -1,11 +1,11 @@
-# $Id: Session.pm 2489 2009-03-02 20:19:54Z bingosnet $
+# $Id: Session.pm 2523 2009-04-15 22:32:14Z bingosnet $
 
 package POE::Session;
 
 use strict;
 
 use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2489 $=~/(\d+)/);sprintf"1.%04d",$r};
+$VERSION = do {my($r)=(q$Revision: 2523 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(carp croak);
 use Errno;
@@ -1202,7 +1202,7 @@ Be very careful with closures, however.  L</Beware circular references>.
 
 C<object_states> associates one or more objects to a session and maps
 event names to the object methods that will handle them.  It's value
-is an CB<ARRAYREF>; C<HASHREFs> would stringify the objects, ruining them
+is an C<ARRAYREF>; C<HASHREFs> would stringify the objects, ruining them
 for method invocation.
 
 Here _start is handled by C<< $object->_session_start() >> and _stop triggers

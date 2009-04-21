@@ -1,4 +1,27 @@
 ==================================
+2009-04-21T05:03:17.094558Z v1_005
+==================================
+
+  2009-04-21 04:02:03 (r2525) by rcaputo; poe/lib/POE.pm M
+
+    Time for a new release.
+
+  2009-04-21 04:01:03 (r2524) by rcaputo; poe/mylib/PoeBuildInfo.pm M
+
+    Skip the IO::Tty dependency on MSWin32. Windows doesn't have
+    pseudo-ttys. Resolves bugs reported by Chris Williams, Adam Kennedy,
+    Offer Kaye (rt.cpan.org #44931), and many more. 
+
+  2009-04-15 22:32:14 (r2523) by bingosnet; poe/lib/POE/Session.pm M
+
+    Typo in object_states POD, spotted by Jay Hannah
+
+  2009-03-31 13:01:38 (r2515) by bingosnet
+  poe/mylib/gen-meta.perl M; poe/mylib/PoeBuildInfo.pm M
+
+    Amended the META.yml generation to include repository meta
+
+==================================
 2009-03-29T17:03:26.594634Z v1_004
 ==================================
 
@@ -835,79 +858,6 @@
   poe/t/30_loops/00_base/wheel_run.pm M
 
     Increase the timeout in a test to avoid false errors.
-
-===================================
-2008-04-19T22:26:06.023137Z v1_0001
-===================================
-
-  2008-04-19 22:25:25 (r2315) by rcaputo; poe/mylib/svn-log.perl M
-
-    Use a much faster svn-log.perl from the latest repo-tools. 
-
-  2008-04-19 22:18:35 (r2314) by rcaputo; poe/lib/POE.pm M
-
-    Bump for release.
-
-  2008-04-19 20:01:20 (r2313) by rcaputo; poe/lib/POE/Kernel.pm M
-
-    Resolve rt.cpan.org ticket 34803. Apocalypse pointed out that
-    $_[KERNEL]->signal(DIE => $_[KERNEL]) would lock up and chew up
-    memory and CPU. Very bad bug. Resolved now, thanks! 
-
-  2008-04-19 05:49:16 (r2312) by rcaputo
-  poe/lib/POE/Resource/Sessions.pm M; poe/lib/POE/Resource/FileHandles.pm
-  M
-
-    Removal of POE::API::ResLoader broke POE::API::Peek. This change
-    re-initializes $poe_kernel members that stopped being set by the
-    previous change. Thanks to Niko Tyni of the Debian Perl Group for
-    pointing out the problem. 
-
-  2008-04-14 04:46:59 (r2311) by rcaputo; poe/lib/POE/Component.pm M
-
-    First draft of the new docs. 
-
-  2008-04-14 03:47:44 (r2310) by rcaputo; poe/lib/POE/Filter.pm M
-
-    First stab at a doc rewrite. 
-
-  2008-04-02 16:37:14 (r2309) by rcaputo; poe/lib/POE/Wheel/Run.pm M
-
-    Change the name of Setpgrp to SetPgrp to follow the form of SetSid. 
-
-  2008-04-02 14:08:34 (r2308) by bingosnet; poe/lib/POE/Wheel/Run.pm M
-
-    Added setpgrp() to POE::Wheel::Run to change process group of child
-    process, if supported by the OS.
-
-  2008-03-31 11:46:07 (r2307) by nothingmuch
-  poe/lib/POE/Resource/Signals.pm M;
-  poe/t/90_regression/merijn-sigchld-system.t M;
-  poe/lib/POE/Loop/PerlSignals.pm M; poe/lib/POE/Kernel.pm M;
-  poe/lib/POE/Resource/FileHandles.pm M
-
-    Introduce optional (see USE_SIGCHLD) $SIG{CHLD} based child polling
-    in addition to interval based polling
-
-  2008-03-27 18:57:08 (r2306) by nothingmuch; poe/lib/POE/Kernel.pm M
-
-    Document all the "other" constants in their own section of
-    POE::Kernel
-
-  2008-03-27 18:39:59 (r2305) by nothingmuch
-  poe/lib/POE/Resource/Signals.pm M; poe/lib/POE/Kernel.pm M
-
-    Introduce the CHILD_POLLING_INTERVAL constant
-
-  2008-03-27 18:38:20 (r2304) by nothingmuch; poe/lib/POE/Kernel.pm M
-
-    Accept values from POE_([A-Z]+) environment variables for any defined
-    constant, not just ASSERT/TRACE
-
-  2008-03-27 18:17:26 (r2303) by rcaputo; poe/lib/POE/Kernel.pm M
-
-    LARGE_QUEUE_SIZE isn't needed anymore. Linear scanning wasn't that
-    much of an optimization. 
 
 ==============
 End of Excerpt
