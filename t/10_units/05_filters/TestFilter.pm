@@ -16,11 +16,12 @@ use Test::More;
 ## export this in a variable
 
 # check interface exists
-$COUNT_FILTER_INTERFACE = 8;
+$COUNT_FILTER_INTERFACE = 7;
 sub test_filter_interface {
   my $class = ref $_[0] || $_[0];
 
-  ok(UNIVERSAL::isa($class, 'POE::Filter'), '$class isa POE::Filter');
+	## XXX This should probable test 'requirse' from POE suite
+  #ok(UNIVERSAL::isa($class, 'POE::Filter'), '$class isa POE::Filter');
   can_ok($class, 'new');
   can_ok($class, 'get');
   can_ok($class, 'get_one_start');

@@ -5,19 +5,26 @@
 
 package POE::Filter::Reference;
 
-use strict;
+use Moose;
 use POE::Filter;
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+with 'POE::Filter';
+
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(carp croak);
 
 sub BUFFER ()   { 0 }
-sub FREEZE ()   { 1 }
-sub THAW ()     { 2 }
-sub COMPRESS () { 3 }
+sub _freeze {
+	my $freezer = shift;
+	my($freezetmp, $thawtmp) = _get_methods($freezer);
+	$freezetmp->($freezer, @_)
+};
+sub _thaw {
+	my $freezer = shift;
+	my($freezetmp, $thawtmp) = _get_methods($freezer);
+	$thawtmp->($freezer, @_)
+};
 
 #------------------------------------------------------------------------------
 # Try to require one of the default freeze/thaw packages.
@@ -95,7 +102,7 @@ sub new {
       # It's an object, create an closure
       my($freezetmp, $thawtmp) = _get_methods($freezer);
       $freeze = sub { $freezetmp->($freezer, @_) };
-      $thaw   = sub { $thawtmp->  ($freezer, @_) };
+      $thaw   = sub { $thawtmp->($freezer, @_) };
     }
     else {
       # A package name?
@@ -143,12 +150,12 @@ sub new {
     }
   }
 
-  my $self = bless [
-    '',           # BUFFER
-    $freeze,      # FREEZE
-    $thaw,        # THAW
-    $compression, # COMPRESS
-  ], $type;
+  my $self = bless {
+    BUFFER   => ''                # BUFFER
+    , FREEZE => $freeze           # FREEZE
+    , THAW   => $thaw             # THAW
+    , COMPRESSION => $compression # COMPRESS
+  }, $type;
   $self;
 }
 
@@ -175,7 +182,7 @@ sub get {
 
 sub get_one_start {
   my ($self, $stream) = @_;
-  $self->[BUFFER] .= join('', @$stream);
+  $self->{BUFFER} .= join('', @$stream);
 }
 
 sub get_one {
@@ -185,14 +192,14 @@ sub get_one {
   BEGIN { eval { require bytes } and bytes->import; }
 
   if (
-    $self->[BUFFER] =~ /^(\d+)\0/ and
-    length($self->[BUFFER]) >= $1 + length($1) + 1
+    $self->{BUFFER} =~ /^(\d+)\0/ and
+    length($self->{BUFFER}) >= $1 + length($1) + 1
   ) {
-    substr($self->[BUFFER], 0, length($1) + 1) = "";
-    my $return = substr($self->[BUFFER], 0, $1);
-    substr($self->[BUFFER], 0, $1) = "";
-    $return = uncompress($return) if $self->[COMPRESS];
-    return [ $self->[THAW]->($return) ];
+    substr($self->{BUFFER}, 0, length($1) + 1) = "";
+    my $return = substr($self->{BUFFER}, 0, $1);
+    substr($self->{BUFFER}, 0, $1) = "";
+    $return = uncompress($return) if $self->{COMPRESS};
+    return [ $self->{THAW}->($return) ];
   }
 
   return [ ];
@@ -208,8 +215,8 @@ sub put {
   BEGIN { eval { require bytes } and bytes->import; }
 
   my @raw = map {
-    my $frozen = $self->[FREEZE]->($_);
-    $frozen = compress($frozen) if $self->[COMPRESS];
+    my $frozen = $self->{FREEZE}->($_);
+    $frozen = compress($frozen) if $self->{COMPRESS};
     length($frozen) . "\0" . $frozen;
   } @$references;
   \@raw;
@@ -221,8 +228,8 @@ sub put {
 
 sub get_pending {
   my $self = shift;
-  return undef unless length $self->[BUFFER];
-  return [ $self->[BUFFER] ];
+  return undef unless length $self->{BUFFER};
+  return [ $self->{BUFFER} ];
 }
 
 1;
