@@ -2,6 +2,7 @@
 
 package POE::Filter;
 
+use Moose::Role;
 use strict;
 
 use vars qw($VERSION);
