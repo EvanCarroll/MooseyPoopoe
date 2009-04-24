@@ -15,10 +15,15 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Moose::Util::TypeConstraints;
 
+use namespace::clean -except => 'meta';
+
 ## Accepts the name of package that might or might not be loaded
 ## Or, the name of the package the loaded package that has the methods
 ## Or, an object.
 ## Because it excepts a package name you can't use delegation
+
+## XXX this should really be a class_has in my eyes. Davey doesn't want to fix his bugs.
+## http://rt.cpan.org/Public/Bug/Display.html?id=45260
 has 'freezer' => (
 	isa   => 'Object | Str'
 	, is  => 'ro'
@@ -198,7 +203,7 @@ sub BUILDARGS {
 	$args;
 }
 
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
