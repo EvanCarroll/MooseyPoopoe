@@ -9,19 +9,17 @@ use vars qw($VERSION @ISA);
 $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 @ISA = qw(POE::Filter);
 
-#------------------------------------------------------------------------------
-
 sub new {
-  my $type = shift;
-  my $buffer = '';
-  my $self = bless \$buffer, $type;
-  $self;
+	my $type = shift;
+	my $buffer = '';
+	my $self = bless \$buffer, $type;
+	$self;
 }
 
 sub clone {
-  my $self = shift;
-  my $buffer = '';
-  my $clone = bless \$buffer, ref $self;
+	my $self = shift;
+	my $buffer = '';
+	my $clone = bless \$buffer, ref $self;
 }
 
 #------------------------------------------------------------------------------
@@ -34,31 +32,27 @@ sub clone {
 # pointless for Stream, but it has to follow the proper interface.
 
 sub get_one_start {
-  my ($self, $stream) = @_;
-  $$self .= join '', @$stream;
+	my ($self, $stream) = @_;
+	$$self .= join '', @$stream;
 }
 
 sub get_one {
-  my $self = shift;
-  return [ ] unless length $$self;
-  my $chunk = $$self;
-  $$self = '';
-  return [ $chunk ];
+	my $self = shift;
+	return [ ] unless length $$self;
+	my $chunk = $$self;
+	$$self = '';
+	return [ $chunk ];
 }
-
-#------------------------------------------------------------------------------
 
 sub put {
-  my ($self, $chunks) = @_;
-  [ @$chunks ];
+	my ($self, $chunks) = @_;
+	[ @$chunks ];
 }
 
-#------------------------------------------------------------------------------
-
 sub get_pending {
-  my $self = shift;
-  return [ $$self ] if length $$self;
-  return undef;
+	my $self = shift;
+	return [ $$self ] if length $$self;
+	return undef;
 }
 
 1;
