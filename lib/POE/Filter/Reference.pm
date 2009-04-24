@@ -7,179 +7,130 @@ package POE::Filter::Reference;
 
 use Moose;
 use POE::Filter;
+use Carp qw();
 
 with 'POE::Filter';
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
-use Carp qw(carp croak);
+use Moose::Util::TypeConstraints;
 
-sub BUFFER ()   { 0 }
-sub _freeze {
-	my $freezer = shift;
-	my($freezetmp, $thawtmp) = _get_methods($freezer);
-	$freezetmp->($freezer, @_)
-};
-sub _thaw {
-	my $freezer = shift;
-	my($freezetmp, $thawtmp) = _get_methods($freezer);
-	$thawtmp->($freezer, @_)
-};
+## Accepts the name of package that might or might not be loaded
+## Or, the name of the package the loaded package that has the methods
+## Or, an object.
+## Because it excepts a package name you can't use delegation
+has 'freezer' => (
+	isa   => 'Object | Str'
+	, is  => 'ro'
+	## XXX This should really default to simply Storable
+	##     default should not be install-independant.
+	, default => sub {
+  	my @packages = qw(Storable FreezeThaw YAML);
+	  foreach my $package (@packages) {
+	    eval { Class::MOP::load_class( $package ) };
+	    if ($@) {
+	      warn $@;
+	      next;
+	    }
+	    return $package; # Found a good freezer!
+	  }
+		die "Filter::Reference requires one of @packages";
+	}
+	, initializer => sub {
+		my ( $self, $freezer, $sub, $meta ) = @_;
+		
+		## XXX This is here because the :136 :138 test in 07_reference.t 
+		## borks the symbol table with Symbol::delete_package
+		## Aparently, POE is supposed to just randomly re-require it
+		## Class::MOP::load_class( $freezer ) doesn't work.
+		unless (
+			ref $freezer
+			|| Class::MOP::is_class_loaded( $freezer )
+		) {
+			local %INC;
+			delete $INC{$freezer};
+			Class::MOP::load_class($freezer);
+		}
 
-#------------------------------------------------------------------------------
-# Try to require one of the default freeze/thaw packages.
-use vars qw( $DEF_FREEZER $DEF_FREEZE $DEF_THAW );
-BEGIN {
-  local $SIG{'__DIE__'} = 'DEFAULT';
+		warn "$freezer doesn't have a freeze or nfreeze method\n"
+			unless $freezer->can('freeze')
+			|| $freezer->can('nfreeze')
+		;
+	  warn "$freezer doesn't have a thaw method\n"
+			unless $freezer->can('thaw')
+		;
+		
+		$sub->( $freezer ) if $sub;
+	}
+);
 
-  my @packages = qw(Storable FreezeThaw YAML);
-  foreach my $package (@packages) {
-    eval { require "$package.pm"; import $package (); };
-    if ($@) {
-      warn $@;
-      next;
-    }
+## XXX Tests attempt to reload the module, exactly once if these two subs aren't there
+##     no fucking idea why -EC
+## XXX Original non-poe version also warned twice if freeze and thaw couldn't be set, and then returned
+##     undef from new, this is fucking stupid anyway, and there were no tests for it ;)
+has 'freeze' => (
+	isa        => 'CodeRef'
+	, is       => 'ro'
+	, init_arg => undef
+	, lazy     => 1 ## Required because depends on initializer
+	, default  => sub {
+		my $self = shift;
+		my $sub = $self->freezer->can('nfreeze') || $self->freezer->can('freeze');
 
-    # Found a good freezer!
-    $DEF_FREEZER = $package;
-    last;
-  }
-  die "Filter::Reference requires one of @packages" unless defined $DEF_FREEZER;
-}
+		unless ( $sub ) {
+			$self->meta->get_attribute('freezer')->initializer->( $self, $self->freezer );
+			$sub = $self->freezer->can('nfreeze') || $self->freezer->can('freeze');
+		}
 
-# Some processing here
-($DEF_FREEZE, $DEF_THAW) = _get_methods($DEF_FREEZER);
+		Carp::croak ( "Even after attemping to reload this module we don't have a freeze()/nfreeze() on freezer" )
+			unless $sub
+		;
+		$sub;
+	}
+);
+has 'thaw' => (
+	isa        => 'CodeRef'
+	, is       => 'ro'
+	, init_arg => undef
+	, lazy     => 1
+	, default  => sub {
+		my $self = shift;
+		my $sub = $self->freezer->can('thaw');
 
-#------------------------------------------------------------------------------
-# Try to acquire Compress::Zlib at runtime.
+		unless ( $sub ) {
+			$self->meta->get_attribute('freezer')->initializer->( $self, $self->freezer );
+			$sub = $self->freezer->can('that');
+		}
 
-my $zlib_status = undef;
-sub _include_zlib {
-  local $SIG{'__DIE__'} = 'DEFAULT';
+		Carp::croak ( "Even after attemping to reload this module we don't have a thaw() on freezer" )
+			unless $sub
+		;
+		$sub;
+	}
+);
 
-  unless (defined $zlib_status) {
-    eval "use Compress::Zlib qw(compress uncompress)";
-    if ($@) {
-      $zlib_status = $@;
-      eval(
-        "sub compress   { @_ }\n" .
-        "sub uncompress { @_ }"
-      );
-    }
-    else {
-      $zlib_status = '';
-    }
-  }
+has 'buffer' => ( isa => 'Str', is => 'rw' );
 
-  $zlib_status;
-}
+## Why couldn't this init_arg just be compression
+has 'compress' => (
+	isa        => 'Str' ## XXX Tests require accepting int(9) as true -EC
+	, is       => 'ro'
+	, init_arg => 'compression'
+	, default  => 0
+	, initializer  => sub {
+		my ( $self, $value, $sub, $meta ) = @_;
+		if ( Class::MOP::load_class('Compress::Zlib') ) {
+			$sub->( $value );
+		}
+		else {
+			Carp::croak "Compress::Zlib load failed with error: $@\n";
+		}
+	}
+);
 
-#------------------------------------------------------------------------------
-
-sub _get_methods {
-  my($freezer)=@_;
-  my $freeze=$freezer->can('nfreeze') || $freezer->can('freeze');
-  my $thaw=$freezer->can('thaw');
-  return unless $freeze and $thaw;
-  return ($freeze, $thaw);
-}
-
-#------------------------------------------------------------------------------
-
-sub new {
-  my($type, $freezer, $compression) = @_;
-
-  my($freeze, $thaw);
-  unless (defined $freezer) {
-    # Okay, load the default one!
-    $freezer = $DEF_FREEZER;
-    $freeze  = $DEF_FREEZE;
-    $thaw    = $DEF_THAW;
-  }
-  else {
-    # What did we get?
-    if (ref $freezer) {
-      # It's an object, create an closure
-      my($freezetmp, $thawtmp) = _get_methods($freezer);
-      $freeze = sub { $freezetmp->($freezer, @_) };
-      $thaw   = sub { $thawtmp->($freezer, @_) };
-    }
-    else {
-      # A package name?
-      # First, find out if the package has the necessary methods.
-      ($freeze, $thaw) = _get_methods($freezer);
-
-      # If not, try to reload the module.
-      unless ($freeze and $thaw) {
-        my $path = $freezer;
-        $path =~ s{::}{/}g;
-        $path .= '.pm';
-
-        # Force a reload if necessary.  This is naive and can leak
-        # memory, so we only do it until we get the desired methods.
-        delete $INC{$path};
-
-        eval {
-          local $^W = 0;
-          require $path;
-          $freezer->import();
-        };
-
-        carp $@ if $@;
-        ($freeze, $thaw) = _get_methods($freezer);
-      }
-    }
-  }
-
-  # Now get the methods we want
-  carp "$freezer doesn't have a freeze or nfreeze method" unless $freeze;
-  carp "$freezer doesn't have a thaw method" unless $thaw;
-
-  # Should ->new() return undef() it if fails to find the methods it
-  # wants?
-  return unless $freeze and $thaw;
-
-  # Compression
-  $compression ||= 0;
-  if ($compression) {
-    my $zlib_status = _include_zlib();
-    if ($zlib_status ne '') {
-      warn "Compress::Zlib load failed with error: $zlib_status\n";
-      carp "Filter::Reference compression option ignored";
-      $compression = 0;
-    }
-  }
-
-  my $self = bless {
-    BUFFER   => ''                # BUFFER
-    , FREEZE => $freeze           # FREEZE
-    , THAW   => $thaw             # THAW
-    , COMPRESSION => $compression # COMPRESS
-  }, $type;
-  $self;
-}
-
-#------------------------------------------------------------------------------
-
-sub get {
-  my ($self, $stream) = @_;
-  my @return;
-
-  $self->get_one_start($stream);
-  while (1) {
-    my $next = $self->get_one();
-    last unless @$next;
-    push @return, @$next;
-  }
-
-  return \@return;
-}
-
-#------------------------------------------------------------------------------
 # 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
 # retrieve one filtered block at a time.  This is necessary for filter
 # changing and proper input flow control.
-
 sub get_one_start {
   my ($self, $stream) = @_;
   $self->{BUFFER} .= join('', @$stream);
@@ -198,38 +149,53 @@ sub get_one {
     substr($self->{BUFFER}, 0, length($1) + 1) = "";
     my $return = substr($self->{BUFFER}, 0, $1);
     substr($self->{BUFFER}, 0, $1) = "";
-    $return = uncompress($return) if $self->{COMPRESS};
-    return [ $self->{THAW}->($return) ];
+    $return = Compress::Zlib::uncompress($return) if $self->compress;
+    return [ $self->thaw->($return) ];
   }
 
   return [ ];
 }
 
-#------------------------------------------------------------------------------
 # freeze one or more references, and return a string representing them
-
 sub put {
   my ($self, $references) = @_;
 
   # Need to check lengths in octets, not characters.
   BEGIN { eval { require bytes } and bytes->import; }
 
-  my @raw = map {
-    my $frozen = $self->{FREEZE}->($_);
-    $frozen = compress($frozen) if $self->{COMPRESS};
-    length($frozen) . "\0" . $frozen;
-  } @$references;
+	my @raw;
+  foreach my $ref ( @$references ) {
+		my $frozen = $self->freeze->($ref);
+		$frozen = Compress::Zlib::compress($frozen) if $self->compress;
+		push @raw, length($frozen) . "\0" . $frozen;
+	}
+
   \@raw;
 }
 
-#------------------------------------------------------------------------------
 # Return everything we have outstanding.  Do not destroy our framing
 # buffer, though.
-
 sub get_pending {
   my $self = shift;
   return undef unless length $self->{BUFFER};
   return [ $self->{BUFFER} ];
+}
+
+
+## Because this shitty framework wants list arguments
+sub BUILDARGS {
+	my $args;
+	
+	if ( ref $_[0] eq 'HASH' ) {
+		$args = $_[0];
+	}
+	else {
+		$args->{type}        ||= $_[0] if defined $_[0];
+		$args->{freezer}     ||= $_[1] if defined $_[1];
+		$args->{compression} ||= $_[2] if defined $_[2];
+	}
+
+	$args;
 }
 
 1;

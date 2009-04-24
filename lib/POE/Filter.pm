@@ -12,10 +12,12 @@ use Carp qw(croak);
 
 #------------------------------------------------------------------------------
 
-sub new {
-  my $type = shift;
-  croak "$type is not meant to be used directly";
-}
+##Not needed, why because Roles aren't classes!
+##Not needed, why because Roles aren't classes!!!
+##sub new {
+##  my $type = shift;
+##  croak "$type is not meant to be used directly";
+##}
 
 # Return all the messages possible to parse in the current input
 # buffer.  This uses the newer get_one_start() and get_one(), which is
