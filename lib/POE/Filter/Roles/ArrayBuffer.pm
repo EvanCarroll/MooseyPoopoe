@@ -16,13 +16,6 @@ sub get_one_start {
 	push @{$self->buffer}, @$data if defined $data;
 }
 
-sub get_one_start {
-	my ($self, $stream) = @_;
-	push @{$self->buffer}, @$stream
-		if defined $stream
-	;
-}
-
 sub get_pending {
 	my $self = shift;
 	return scalar @{$self->buffer}
