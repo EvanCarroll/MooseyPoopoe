@@ -4,7 +4,10 @@ use MooseX::AttributeHelpers;
 use Moose::Util::TypeConstraints;
 
 use strict;
-with 'POE::Filter';
+with qw/
+	POE::Filter
+	POE::Filter::Roles::ScalarBuffer
+/;
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
@@ -94,22 +97,6 @@ sub _trigger_blocksize_lengthcodec {
 	;
 };
 
-has 'buffer' => (
-	isa        => 'Str'
-	, is       => 'rw'
-	, default  => ''
-	, metaclass => 'String'
-
-	, provides  => {
-		append  => 'append_to_buffer'
-		, clear    => 'clear_buffer'
-		, 'substr' => 'substr_buffer'
-	}
-
-);
-
-sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
-
 sub get_one {
 	my $self = shift;
 
@@ -182,15 +169,6 @@ sub put {
 	}
 
 	\@raw;
-}
-
-sub get_pending {
-	my $self = shift;
-	
-	return defined $self->buffer && length $self->buffer
-		? [ $self->buffer ]
-		: undef
-	;
 }
 
 sub BUILDARGS {

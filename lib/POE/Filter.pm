@@ -1,5 +1,3 @@
-# $Id: Filter.pm 2490 2009-03-02 20:52:40Z rcaputo $
-
 package POE::Filter;
 
 use Moose::Role;
@@ -10,13 +8,6 @@ our $VERSION = do {my($r)=(q$Revision: 2490 $=~/(\d+)/);sprintf"1.%04d",$r};
 use Carp qw(croak);
 
 #------------------------------------------------------------------------------
-
-##Not needed, why because Roles aren't classes!
-##Not needed, why because Roles aren't classes!!!
-##sub new {
-##  my $type = shift;
-##  croak "$type is not meant to be used directly";
-##}
 
 # Return all the messages possible to parse in the current input
 # buffer.  This uses the newer get_one_start() and get_one(), which is
@@ -364,6 +355,3 @@ block protocols tend to be incompatible.
 Please see L<POE> for more information about authors and contributors.
 
 =cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

@@ -4,7 +4,10 @@ use strict;
 use Moose;
 use MooseX::AttributeHelpers;
 
-with 'POE::Filter';
+with qw/
+	POE::Filter
+	POE::Filter::Roles::ScalarBuffer
+/;
 
 use namespace::clean -except => 'meta';
 
@@ -22,22 +25,6 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 # changing and proper input flow control.  Although it's kind of
 # pointless for Stream, but it has to follow the proper interface.
 
-has 'buffer' => (
-	isa        => 'Str'
-	, is       => 'ro'
-	, default  => ''
-	, metaclass => 'String'
-
-	, provides  => {
-		append  => 'append_to_buffer'
-		, clear => 'clear_buffer'
-	}
-
-);
-
-
-sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
-
 sub get_one {
 	my $self = shift;
 	
@@ -53,15 +40,6 @@ sub get_one {
 }
 
 sub put {  [ @{$_[1]} ]  }
-
-sub get_pending {
-	my $self = shift;
-	
-	return defined $self->buffer && length $self->buffer
-		? [ $self->buffer ]
-		: undef
-	;
-}
 
 sub clone { +shift->new(@_); }
 
