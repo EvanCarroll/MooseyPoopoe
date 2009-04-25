@@ -7,6 +7,11 @@ with 'POE::Filter';
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
+## XXX All of the functions names in this modules are *retarded*
+## X get_one_start: appends an array, via ArraRef onto the buffer
+## X put: returns the array referenced by an ArrayRef
+## X get_pending: an array ref of the remaining buffer
+
 has 'buffer' => (
 	isa        => 'Str'
 	, is       => 'ro'
@@ -35,10 +40,15 @@ sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
 
 sub get_one {
 	my $self = shift;
-	return [ ] unless length $self->buffer;
-	my $chunk = $self->buffer;
-	$self->clear_buffer;
-	return [ $chunk ];
+	
+	if ( length $self->buffer ) {
+		return []
+	else {
+		my $chunk = $self->buffer;
+		$self->clear_buffer;
+		return [ $chunk ];
+	}
+
 }
 
 sub put {
