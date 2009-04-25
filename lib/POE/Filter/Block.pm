@@ -19,10 +19,6 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use namespace::clean -except => 'meta';
 
-subtype 'Natural'
-	=> as 'Int'
-	=> where { int($_) > 0 }
-;
 subtype 'LengthCodec'
 	=> as 'ArrayRef[CodeRef]'
 	=> where { scalar @$_ == 2 }

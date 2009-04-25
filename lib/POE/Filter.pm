@@ -1,5 +1,6 @@
 package POE::Filter;
 
+use Moose::Util::TypeConstraints;
 use Moose::Role;
 use strict;
 
@@ -7,12 +8,16 @@ our $VERSION = do {my($r)=(q$Revision: 2490 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
-#------------------------------------------------------------------------------
+subtype 'Natural'
+	=> as 'Int'
+	=> where { int($_) > 0 }
+;
+
+has 'debug' => ( isa => 'Bool', is => 'ro', default => 0 );
 
 # Return all the messages possible to parse in the current input
 # buffer.  This uses the newer get_one_start() and get_one(), which is
 # implementation dependent.
-
 sub get {
   my ($self, $stream) = @_;
   my @return;
