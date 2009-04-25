@@ -12,6 +12,13 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 ## X put: returns the array referenced by an ArrayRef
 ## X get_pending: an array ref of the remaining buffer
 
+# get() is inherited from POE::Filter.
+
+# 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
+# retrieve one filtered block at a time.  This is necessary for filter
+# changing and proper input flow control.  Although it's kind of
+# pointless for Stream, but it has to follow the proper interface.
+
 has 'buffer' => (
 	isa        => 'Str'
 	, is       => 'ro'
@@ -29,32 +36,21 @@ sub clone { +shift->new(@_); }
 
 sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
 
-#------------------------------------------------------------------------------
-# get() is inherited from POE::Filter.
-
-#------------------------------------------------------------------------------
-# 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
-# retrieve one filtered block at a time.  This is necessary for filter
-# changing and proper input flow control.  Although it's kind of
-# pointless for Stream, but it has to follow the proper interface.
-
 sub get_one {
 	my $self = shift;
 	
 	if ( length $self->buffer ) {
-		return []
-	else {
 		my $chunk = $self->buffer;
 		$self->clear_buffer;
 		return [ $chunk ];
 	}
+	else {
+		return []
+	}
 
 }
 
-sub put {
-	my ($self, $chunks) = @_;
-	[ @$chunks ];
-}
+sub put {  [ @{$_[1]} ]  }
 
 sub get_pending {
 	my $self = shift;
