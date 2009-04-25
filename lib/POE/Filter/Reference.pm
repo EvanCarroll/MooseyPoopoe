@@ -1,9 +1,5 @@
-# $Id: Reference.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Filter::Reference partial copyright 1998 Artur Bergman
-# <artur@vogon-solutions.com>.  Partial copyright 1999 Philip Gwyn.
-
 package POE::Filter::Reference;
+use strict;
 
 use Moose;
 use POE::Filter;
