@@ -35,7 +35,6 @@ has 'buffer' => (
 
 );
 
-sub clone { +shift->new(@_); }
 
 sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
 
@@ -63,6 +62,8 @@ sub get_pending {
 		: undef
 	;
 }
+
+sub clone { +shift->new(@_); }
 
 1;
 
