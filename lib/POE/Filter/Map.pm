@@ -8,6 +8,24 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak carp);
 
+use namespace::clean -except => 'meta';
+
+# get() is inherited from POE::Filter.
+# clone() is inherited from POE::Filter.
+#------------------------------------------------------------------------------
+# 2001-07-26 RCC: The get_one variant of get() allows Wheel::Xyz to
+# retrieve one filtered record at a time.  This is necessary for
+# filter changing and proper input flow control, even though it's kind
+# of slow.
+
+## XXX Above my normal gripes this module wins the notable award for caps stupidity
+##     Get and Put and Code are the names of the coderefs
+##     get/put are also sub names - EC
+
+has 'buffer' => ( isa => 'ArrayRef' , is => 'ro' , default => sub { +[] } );
+
+has 'Code' => ( isa => 'CodeRef', is => 'rw' );
+
 foreach ( qw/Get Put/ ) {
 	has( $_ => (
 		isa         => 'CodeRef'
@@ -20,8 +38,6 @@ foreach ( qw/Get Put/ ) {
 			}
 	) );
 };
-
-has 'Code' => ( isa => 'CodeRef', is => 'rw' );
 
 sub _get_put_trigger {
 	my $self = shift;
@@ -43,28 +59,10 @@ sub BUILDARGS {
 	\%params;
 }
 
-#------------------------------------------------------------------------------
-# get() is inherited from POE::Filter.
-# clone() is inherited from POE::Filter.
-
-#------------------------------------------------------------------------------
-
 sub put {
 	my ($self, $data) = @_;
 	[ map { $self->Put->($_) } @$data ];
 }
-
-#------------------------------------------------------------------------------
-# 2001-07-26 RCC: The get_one variant of get() allows Wheel::Xyz to
-# retrieve one filtered record at a time.  This is necessary for
-# filter changing and proper input flow control, even though it's kind
-# of slow.
-
-has 'buffer' => (
-	isa => 'ArrayRef'
-	, is => 'ro'
-	, default => sub { +[] }
-);
 
 sub get_one_start {
 	my ($self, $stream) = @_;
@@ -81,10 +79,8 @@ sub get_one {
 	return [ map { $self->Get->($_) } $next_record ];
 }
 
-#------------------------------------------------------------------------------
 # 2001-07-27 RCC: This filter now tracks state, so get_pending has
 # become useful.
-
 sub get_pending {
 	my $self = shift;
 	return undef unless @{$self->buffer};
@@ -113,6 +109,8 @@ sub modify {
 }
 
 1;
+
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
