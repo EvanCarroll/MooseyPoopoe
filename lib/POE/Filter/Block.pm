@@ -9,7 +9,6 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
-sub EXPECTED_SIZE  () { 2 }
 
 # get() is inherited from POE::Filter.
 #------------------------------------------------------------------------------
@@ -58,14 +57,20 @@ has 'decoder' => (
 		return $self->has_length_codec
 			? $self->length_codec->[1]
 			: sub {
-					my $stuff = shift;
-					unless ($$stuff =~ s/^(\d+)\0//s) {
-						warn length($1), " strange bytes removed from stream"
-							if $$stuff =~ s/^(\D+)//s;
-						return;
-					}
-					return $1;
-			}
+				##	unless (${$_[0]} =~ s/^(\d+)\0//s) {
+				##		warn length($1), " strange bytes ($1) removed from stream"
+				##			if ${$_[0]} =~ s/^(\D+)//s;
+				##		return;
+				##	}
+				##	return $1;
+my $stuff = shift;
+unless ($$stuff =~ s/^(\d+)\0//s) {
+  warn length($1), " strange bytes removed from stream"
+    if $$stuff =~ s/^(\D+)//s;
+  return;
+}
+return $1;
+				}
 		;
 	}
 );
@@ -93,7 +98,7 @@ sub _trigger_blocksize_lengthcodec {
 
 has 'buffer' => (
 	isa        => 'Str'
-	, is       => 'ro'
+	, is       => 'rw'
 	, default  => ''
 	, metaclass => 'String'
 
@@ -124,23 +129,36 @@ sub get_one {
 
 	# Otherwise we're doing the variable-length block thing.  Look for a
 	# length marker, and then pull off a chunk of that length.  Repeat.
-	elsif ( not (
-		$self->has_expected_size
-		|| $self->expected_size( $self->decoder->(\$self->buffer) )
-	) ) {
+	else {
 
-		return [ ] if length($self->buffer) < $self->expected_size;
+		## this just gets the expected size of the block
+		## we don't really do much with it though...
+		my $expected_size;
+		if ( $self->has_expected_size ) {
+			$expected_size = $self->expected_size
+		}
+		else {
+			# XXX There should be a way with moose to get the ref straight to the buffer
+			#     That way we don't have to copy
+			my $buffer = $self->buffer;
+			$expected_size = $self->decoder->( \$buffer );
+			$self->buffer( $buffer );
+		}
 
-		my $block = $self->substr_buffer( 0, $self->expected_size, '' );
-		$self->clear_expected_size;
+		if ( $expected_size ) {
+			if ( length($self->buffer) < $expected_size ) {
+				$self->expected_size( $expected_size )
+			}
+			else {
+				$self->clear_expected_size;
+				return [ $self->substr_buffer( 0, $expected_size, '' ) ]
+			}
+		}
 
-		return [ $block ];
 	}
 
 	return [ ];
 }
-
-#------------------------------------------------------------------------------
 
 sub put {
 	my ($self, $blocks) = @_;
