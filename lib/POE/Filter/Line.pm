@@ -1,13 +1,11 @@
-# $Id: Line.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
 package POE::Filter::Line;
-
 use strict;
-use POE::Filter;
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+use Moose;
+
+with 'POE::Filter';
+
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(carp croak);
 
