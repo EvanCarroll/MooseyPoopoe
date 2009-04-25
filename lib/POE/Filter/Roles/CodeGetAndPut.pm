@@ -1,16 +1,14 @@
 package POE::Filter::Roles::CodeGetAndPut;
-use Moose::Role;
 use strict;
 
-use Carp qw(croak carp);
+use Moose::Role;
+use Carp qw();
 
 use namespace::clean -except => 'meta';
 
-## XXX Above my normal gripes this module wins the notable award for caps stupidity
+## XXX Above my normal gripes this role wins the notable award for caps stupidity
 ##     Get and Put and Code are the names of the coderefs
 ##     get/put are also sub names - EC
-
-has 'buffer' => ( isa => 'ArrayRef' , is => 'ro' , default => sub { +[] } );
 
 has 'Code' => ( isa => 'CodeRef', is => 'rw' );
 
@@ -34,25 +32,12 @@ sub _get_put_trigger {
 	;
 };
 
-sub get_one_start {
-	my ($self, $stream) = @_;
-	push @{$self->buffer}, @$stream
-		if defined $stream
-	;
-}
-
-sub get_pending {
-	my $self = shift;
-	return undef unless @{$self->buffer};
-	[ @{$self->buffer} ];
-}
-
 sub modify {
 	my ($self, %params) = @_;
 
 	for (keys %params) {
 		unless (ref $params{$_} eq 'CODE') {
-			carp("Modify $_ element must be given a coderef");
+			Carp::carp("Modify $_ element must be given a coderef");
 			next;
 		}
 		if (lc eq 'code') {
