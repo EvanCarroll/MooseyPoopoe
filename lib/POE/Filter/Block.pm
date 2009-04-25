@@ -1,5 +1,6 @@
 package POE::Filter::Block;
 use Moose;
+use MooseX::AttributeHelpers;
 
 use strict;
 with 'POE::Filter';
@@ -8,164 +9,181 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
-sub FRAMING_BUFFER () { 0 }
-sub BLOCK_SIZE     () { 1 }
 sub EXPECTED_SIZE  () { 2 }
-sub ENCODER        () { 3 }
-sub DECODER        () { 4 }
 
-#------------------------------------------------------------------------------
-
-sub _default_decoder {
-  my $stuff = shift;
-  unless ($$stuff =~ s/^(\d+)\0//s) {
-    warn length($1), " strange bytes removed from stream"
-      if $$stuff =~ s/^(\D+)//s;
-    return;
-  }
-  return $1;
-}
-
-sub _default_encoder {
-  my $stuff = shift;
-  substr($$stuff, 0, 0) = length($$stuff) . "\0";
-  return;
-}
-
-sub new {
-  my $type = shift;
-  croak "$type must be given an even number of parameters" if @_ & 1;
-  my %params = @_;
-
-  my ($encoder, $decoder);
-  my $block_size = delete $params{BlockSize};
-  if (defined $block_size) {
-    croak "$type doesn't support zero or negative block sizes"
-      if $block_size < 1;
-    croak "Can't use both LengthCodec and BlockSize at the same time"
-      if exists $params{LengthCodec};
-  }
-  else {
-    my $codec = delete $params{LengthCodec};
-    if ($codec) {
-      croak "LengthCodec must be an array reference"
-        unless ref($codec) eq "ARRAY";
-      croak "LengthCodec must contain two items"
-        unless @$codec == 2;
-      ($encoder, $decoder) = @$codec;
-      croak "LengthCodec encoder must be a code reference"
-        unless ref($encoder) eq "CODE";
-      croak "LengthCodec decoder must be a code reference"
-        unless ref($decoder) eq "CODE";
-    }
-    else {
-      $encoder = \&_default_encoder;
-      $decoder = \&_default_decoder;
-    }
-  }
-
-  my $self = bless [
-    '',           # FRAMING_BUFFER
-    $block_size,  # BLOCK_SIZE
-    undef,        # EXPECTED_SIZE
-    $encoder,     # ENCODER
-    $decoder,     # DECODER
-  ], $type;
-
-  $self;
-}
-
-
-#------------------------------------------------------------------------------
 # get() is inherited from POE::Filter.
-
 #------------------------------------------------------------------------------
 # 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
 # retrieve one filtered block at a time.  This is necessary for filter
 # changing and proper input flow control.
 
-sub get_one_start {
-  my ($self, $stream) = @_;
-  $self->[FRAMING_BUFFER] .= join '', @$stream;
-}
+
+use Moose::Util::TypeConstraints;
+subtype 'Natural'
+	=> as 'Int'
+	=> where { int($_) > 0 }
+;
+subtype 'LengthCodec'
+	=> as 'ArrayRef[CodeRef]'
+	=> where { scalar @$_ == 2 }
+;
+
+has 'length_codec' => (
+	isa         => 'LengthCodec'
+	, is        => 'ro'
+	, init_arg  => 'LengthCodec'
+	, predicate => 'has_length_codec'
+);
+
+has 'encoder' => (
+	isa  => 'CodeRef'
+	, is => 'ro'
+	, default => sub {
+		my $self = shift;
+		
+		return $self->has_length_codec
+			? $self->length_codec->[0]
+			: sub { substr(${$_[0]}, 0, 0) = length(${$_[0]}) . "\0" }
+		;
+		
+	}
+);
+
+has 'decoder' => (
+	isa => 'CodeRef'
+	, is => 'ro'
+	, default => sub {
+		my $self = shift;
+
+		return $self->has_length_codec
+			? $self->length_codec->[1]
+			: sub {
+					my $stuff = shift;
+					unless ($$stuff =~ s/^(\d+)\0//s) {
+						warn length($1), " strange bytes removed from stream"
+							if $$stuff =~ s/^(\D+)//s;
+						return;
+					}
+					return $1;
+			}
+		;
+	}
+);
+
+has 'block_size' => (
+	isa         => 'Natural'
+	, is        => 'ro'
+	, init_arg  => 'BlockSize'
+	, predicate => 'has_block_size'
+);
+
+has 'expected_size' => (
+	isa  => 'Int'
+	, is => 'rw'
+	, predicate => 'has_expected_size'
+	, clearer   => 'clear_expected_size'
+);
+
+sub _trigger_blocksize_lengthcodec {
+	my $self = shift;
+	croak "Can't use both LengthCodec and BlockSize at the same time"
+		if $self->has_block_size && $self->has_length_codec
+	;
+};
+
+has 'buffer' => (
+	isa        => 'Str'
+	, is       => 'ro'
+	, default  => ''
+	, metaclass => 'String'
+
+	, provides  => {
+		append  => 'append_to_buffer'
+		, clear    => 'clear_buffer'
+		, 'substr' => 'substr_buffer'
+	}
+
+);
+
+sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
 
 sub get_one {
-  my $self = shift;
+	my $self = shift;
 
-  # Need to check lengths in octets, not characters.
-  BEGIN { eval { require bytes } and bytes->import; }
+	# Need to check lengths in octets, not characters.
+	BEGIN { eval { require bytes } and bytes->import; }
 
-  # If a block size is specified, then pull off a block of that many
-  # bytes.
+	# If a block size is specified, then pull off a block of that many
+	# bytes.
+	if ($self->has_block_size) {
+		return [ ] unless length($self->buffer) >= $self->block_size;
 
-  if (defined $self->[BLOCK_SIZE]) {
-    return [ ] unless length($self->[FRAMING_BUFFER]) >= $self->[BLOCK_SIZE];
-    my $block = substr($self->[FRAMING_BUFFER], 0, $self->[BLOCK_SIZE]);
-    substr($self->[FRAMING_BUFFER], 0, $self->[BLOCK_SIZE]) = '';
-    return [ $block ];
-  }
+		my $block = $self->substr_buffer( 0, $self->block_size, '' );
+		return [ $block ];
+	}
 
-  # Otherwise we're doing the variable-length block thing.  Look for a
-  # length marker, and then pull off a chunk of that length.  Repeat.
+	# Otherwise we're doing the variable-length block thing.  Look for a
+	# length marker, and then pull off a chunk of that length.  Repeat.
+	elsif ( not (
+		$self->has_expected_size
+		|| $self->expected_size( $self->decoder->(\$self->buffer) )
+	) ) {
 
-  if (
-    defined($self->[EXPECTED_SIZE]) ||
-    defined(
-      $self->[EXPECTED_SIZE] = $self->[DECODER]->(\$self->[FRAMING_BUFFER])
-    )
-  ) {
-    return [ ] if length($self->[FRAMING_BUFFER]) < $self->[EXPECTED_SIZE];
+		return [ ] if length($self->buffer) < $self->expected_size;
 
-    # Four-arg substr() would be better here, but it's not compatible
-    # with Perl as far back as we support.
-    my $block = substr($self->[FRAMING_BUFFER], 0, $self->[EXPECTED_SIZE]);
-    substr($self->[FRAMING_BUFFER], 0, $self->[EXPECTED_SIZE]) = '';
-    $self->[EXPECTED_SIZE] = undef;
+		my $block = $self->substr_buffer( 0, $self->expected_size, '' );
+		$self->clear_expected_size;
 
-    return [ $block ];
-  }
+		return [ $block ];
+	}
 
-  return [ ];
+	return [ ];
 }
 
 #------------------------------------------------------------------------------
 
 sub put {
-  my ($self, $blocks) = @_;
-  my @raw;
+	my ($self, $blocks) = @_;
+	my @raw;
 
-  # Need to check lengths in octets, not characters.
-  BEGIN { eval { require bytes } and bytes->import; }
+	# Need to check lengths in octets, not characters.
+	BEGIN { eval { require bytes } and bytes->import; }
 
-  # If a block size is specified, then just assume the put is right.
-  # This will cause quiet framing errors on the receiving side.  Then
-  # again, we'll have quiet errors if the block sizes on both ends
-  # differ.  Ah, well!
+	# If a block size is specified, then just assume the put is right.
+	# This will cause quiet framing errors on the receiving side.  Then
+	# again, we'll have quiet errors if the block sizes on both ends
+	# differ.  Ah, well!
+	if ($self->has_block_size) {
+		@raw = join '', @$blocks;
+	}
+	# No specified block size. Do the variable-length block thing. This
+	# steals a lot of Artur's code from the Reference filter.
+	else {
+		@raw = @$blocks;
+		foreach (@raw) {
+			$self->encoder->(\$_);
+		}
+	}
 
-  if (defined $self->[BLOCK_SIZE]) {
-    @raw = join '', @$blocks;
-  }
-
-  # No specified block size. Do the variable-length block thing. This
-  # steals a lot of Artur's code from the Reference filter.
-
-  else {
-    @raw = @$blocks;
-    foreach (@raw) {
-      $self->[ENCODER]->(\$_);
-    }
-  }
-
-  \@raw;
+	\@raw;
 }
-
-#------------------------------------------------------------------------------
 
 sub get_pending {
-  my $self = shift;
-  return undef unless length $self->[FRAMING_BUFFER];
-  [ $self->[FRAMING_BUFFER] ];
+	my $self = shift;
+	
+	return defined $self->buffer && length $self->buffer
+		? [ $self->buffer ]
+		: undef
+	;
 }
+
+sub BUILDARGS {
+	my $type = shift;
+	croak "$type : Must be given an even number of parameters" if @_ & 1;
+	my %params = @_;
+	\%params;
+}
+
 
 1;
 
