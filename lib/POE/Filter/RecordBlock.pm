@@ -7,14 +7,7 @@ with 'POE::Filter';
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
-use Carp qw(croak);
-
-sub BLOCKSIZE () { 0 };
-sub GETBUFFER () { 1 };
-sub PUTBUFFER () { 2 };
-sub CHECKPUT  () { 3 };
-
-#------------------------------------------------------------------------------
+use namespace::clean -except => 'meta';
 
 has 'blocksize' => (
 	isa        => 'Natural'
@@ -95,13 +88,12 @@ sub clone {
 
 sub BUILDARGS {
 	my $type = shift;
-	croak "$type must be given an even number of parameters" if @_ & 1;
+	Carp::croak "$type must be given an even number of parameters" if @_ & 1;
 	my %params = @_;
 	\%params;
 }
 
-
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
