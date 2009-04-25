@@ -1,13 +1,10 @@
-# 2001/01/25 shizukesa@pobox.com
-
 package POE::Filter::Map;
-
+use Moose;
 use strict;
-use POE::Filter;
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+with 'POE::Filter';
+
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak carp);
 
