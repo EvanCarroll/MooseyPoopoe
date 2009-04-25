@@ -5,8 +5,7 @@ package POE::Filter;
 use Moose::Role;
 use strict;
 
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2490 $=~/(\d+)/);sprintf"1.%04d",$r};
+our $VERSION = do {my($r)=(q$Revision: 2490 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
