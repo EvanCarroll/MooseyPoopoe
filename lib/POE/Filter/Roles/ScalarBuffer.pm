@@ -1,6 +1,8 @@
 package POE::Filter::Roles::ScalarBuffer;
-use Moose::Role;
 use strict;
+
+use Moose::Role;
+use MooseX::AttributeHelpers;
 
 use namespace::clean -except => 'meta';
 
