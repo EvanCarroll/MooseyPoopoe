@@ -1,13 +1,11 @@
-# 2001/01/25 shizukesa@pobox.com
-
 package POE::Filter::RecordBlock;
-
 use strict;
-use POE::Filter;
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+use Moose;
+use MooseX::AttributeHelpers;
+with 'POE::Filter';
+
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
@@ -18,113 +16,90 @@ sub CHECKPUT  () { 3 };
 
 #------------------------------------------------------------------------------
 
-sub new {
-  my $type = shift;
+has 'blocksize' => (
+	isa        => 'Natural'
+	, is       => 'rw'
+	, init_arg => 'BlockSize'
+	, required => 1
+);
 
-  croak "$type must be given an even number of parameters" if @_ & 1;
-  my %params = @_;
+has 'checkput' => ( isa  => 'Bool' , is => 'rw', init_arg => 'CheckPut' );
 
-  croak "BlockSize must be greater than 0" unless (
-    defined($params{BlockSize}) && ($params{BlockSize} > 0)
-  );
+has 'getbuffer' => (
+	isa => 'ArrayRef'
+	, is => 'ro'
+	, metaclass => 'Collection::Array'
+	, default => sub { +[] }
+);
 
-  my $self = bless [
-    $params{BlockSize}, # BLOCKSIZE
-    [],                 # GETBUFFER
-    [],                 # PUTBUFFER
-    $params{CheckPut},  # CHECKPUT
-  ], $type;
-}
-
-sub clone {
-  my $self = shift;
-  my $clone = bless [
-    $self->[0], # BLOCKSIZE
-    [],         # GETBUFFER
-    [],         # PUTBUFFER
-    $self->[3], # CHECKPUT
-  ], ref $self;
-  $clone;
-}
-
-#------------------------------------------------------------------------------
-# get() is inherited from POE::Filter.
-
-#------------------------------------------------------------------------------
-# 2001-07-27 RCC: Add get_one_start() and get_one() to correct filter
-# changing and make input flow control possible.
+has 'putbuffer' => (
+	isa => 'ArrayRef'
+	, is => 'ro'
+	, default => sub { +[] }
+);
 
 sub get_one_start {
-  my ($self, $data) = @_;
-  push @{$self->[GETBUFFER]}, @$data;
+	my ($self, $data) = @_;
+	push @{$self->getbuffer}, @$data;
 }
 
 sub get_one {
-  my $self = shift;
+	my $self = shift;
 
-  return [ ] unless @{$self->[GETBUFFER]} >= $self->[BLOCKSIZE];
-  return [ [ splice @{$self->[GETBUFFER]}, 0, $self->[BLOCKSIZE] ] ];
+	return [ ] unless @{$self->getbuffer} >= $self->blocksize;
+	return [ [ splice @{$self->getbuffer}, 0, $self->blocksize ] ];
 }
-
-#------------------------------------------------------------------------------
 
 sub put {
-  my ($self, $data) = @_;
-  my @result;
+	my ($self, $data) = @_;
+	my @result;
 
-  if ($self->[CHECKPUT]) {
-    foreach (@$data) {
-      push @{$self->[PUTBUFFER]}, @$_;
-    }
-    while (@{$self->[PUTBUFFER]} >= $self->[BLOCKSIZE]) {
-      push @result, splice @{$self->[PUTBUFFER]}, 0, $self->[BLOCKSIZE];
-    }
-  }
-  else {
-    push @result, splice(@{$self->[PUTBUFFER]}, 0);
-    foreach (@$data) {
-      push @result, @$_;
-    }
-  }
-  \@result;
+	if ( $self->checkput ) {
+		foreach (@$data) {
+			push @{$self->putbuffer}, @$_;
+		}
+		while (@{$self->putbuffer} >= $self->blocksize) {
+			push @result, splice @{$self->putbuffer}, 0, $self->blocksize;
+		}
+	}
+	else {
+		push @result, splice(@{$self->putbuffer}, 0);
+		foreach (@$data) {
+			push @result, @$_;
+		}
+	}
+	\@result;
 }
-
-#------------------------------------------------------------------------------
 
 sub get_pending {
-  my $self = shift;
-  return undef unless @{$self->[GETBUFFER]};
-  return [ @{$self->[GETBUFFER]} ];
+	my $self = shift;
+	return undef unless @{$self->getbuffer};
+	return [ @{$self->getbuffer} ];
 }
-
-#------------------------------------------------------------------------------
 
 sub put_pending {
-  my ($self) = @_;
-  return undef unless $self->[CHECKPUT];
-  return undef unless @{$self->[PUTBUFFER]};
-  return [ @{$self->[PUTBUFFER]} ];
+	my ($self) = @_;
+	return undef unless $self->checkput;
+	return undef unless @{$self->putbuffer};
+	return [ @{$self->putbuffer} ];
 }
 
-#------------------------------------------------------------------------------
-
-sub blocksize {
-  my ($self, $size) = @_;
-  if (defined($size) && ($size > 0)) {
-    $self->[BLOCKSIZE] = $size;
-  }
-  $self->[BLOCKSIZE];
+sub clone {
+	my $self = shift;
+	# TODO this should use hash ref not list on const
+	$self->meta->name->new(
+		BlockSize  => $self->blocksize
+		, CheckPut => $self->checkput
+	);
 }
 
-#------------------------------------------------------------------------------
-
-sub checkput {
-  my ($self, $val) = @_;
-  if (defined($val)) {
-    $self->[CHECKPUT] = $val;
-  }
-  $self->[CHECKPUT];
+sub BUILDARGS {
+	my $type = shift;
+	croak "$type must be given an even number of parameters" if @_ & 1;
+	my %params = @_;
+	\%params;
 }
+
 
 1;
 
