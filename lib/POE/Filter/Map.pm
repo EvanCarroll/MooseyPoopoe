@@ -1,75 +1,14 @@
 package POE::Filter::Map;
-use Moose;
 use strict;
 
-with 'POE::Filter';
+use Moose;
 
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-use Carp qw(croak carp);
+with qw/
+	POE::Filter
+	POE::Filter::Roles::CodeGetAndPut
+/;
 
 use namespace::clean -except => 'meta';
-
-# get() is inherited from POE::Filter.
-# clone() is inherited from POE::Filter.
-#------------------------------------------------------------------------------
-# 2001-07-26 RCC: The get_one variant of get() allows Wheel::Xyz to
-# retrieve one filtered record at a time.  This is necessary for
-# filter changing and proper input flow control, even though it's kind
-# of slow.
-
-## XXX Above my normal gripes this module wins the notable award for caps stupidity
-##     Get and Put and Code are the names of the coderefs
-##     get/put are also sub names - EC
-
-has 'buffer' => ( isa => 'ArrayRef' , is => 'ro' , default => sub { +[] } );
-
-has 'Code' => ( isa => 'CodeRef', is => 'rw' );
-
-foreach ( qw/Get Put/ ) {
-	has( $_ => (
-		isa         => 'CodeRef'
-		, is        => 'rw'
-		, predicate => "has_$_"
-		, trigger   => \&_get_put_trigger
-		, lazy      => 1
-		, default   => sub {
-				$_[0]->Code || die 'Not a valid Put and Get, or a valid Code'
-			}
-	) );
-};
-
-sub _get_put_trigger {
-	my $self = shift;
-	Carp::croak 'Both a Get and Put parameter must be present, if either one is'
-		unless defined $self->has_Get && defined $self->has_Put
-	;
-};
-
-sub BUILDARGS {
-	my $type = shift;
-	croak "$type must be given an even number of parameters" if @_ & 1;
-	my %params = @_;
-
-	croak "$type requires a Code or both Get and Put parameters"
-		unless defined($params{Code})
-		or defined($params{Get}) && defined($params{Put})
-	;
-
-	\%params;
-}
-
-sub put {
-	my ($self, $data) = @_;
-	[ map { $self->Put->($_) } @$data ];
-}
-
-sub get_one_start {
-	my ($self, $stream) = @_;
-	push @{$self->buffer}, @$stream
-		if defined $stream
-	;
-}
 
 sub get_one {
 	my $self = shift;
@@ -79,36 +18,23 @@ sub get_one {
 	return [ map { $self->Get->($_) } $next_record ];
 }
 
-# 2001-07-27 RCC: This filter now tracks state, so get_pending has
-# become useful.
-sub get_pending {
-	my $self = shift;
-	return undef unless @{$self->buffer};
-	[ @{$self->buffer} ];
+sub put {
+	my ($self, $data) = @_;
+	[ map { $self->Put->($_) } @$data ];
 }
 
-sub modify {
-	my ($self, %params) = @_;
+sub BUILDARGS {
+	my $type = shift;
+	Carp::croak "$type must be given an even number of parameters" if @_ & 1;
+	my %params = @_;
 
-	for (keys %params) {
-		unless (ref $params{$_} eq 'CODE') {
-			carp("Modify $_ element must be given a coderef");
-			next;
-		}
-		if (lc eq 'code') {
-			$self->Get( $params{$_} );
-			$self->Put( $params{$_} );
-		}
-		elsif (lc eq 'put') {
-			$self->Put( $params{$_} );
-		}
-		elsif (lc eq 'get') {
-			$self->Get( $params{$_} );
-		}
-	}
+	Carp::croak "$type requires a Code or both Get and Put parameters"
+		unless defined($params{Code})
+		or defined($params{Get}) && defined($params{Put})
+	;
+
+	\%params;
 }
-
-1;
 
 __PACKAGE__->meta->make_immutable;
 
