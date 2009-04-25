@@ -1,24 +1,28 @@
 # $Id: Stream.pm 2447 2009-02-17 05:04:43Z rcaputo $
 package POE::Filter::Stream;
 use Moose;
+use MooseX::AttributeHelpers;
 
 with 'POE::Filter';
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
-sub new {
-	my $type = shift;
-	my $buffer = '';
-	my $self = bless \$buffer, $type;
-	$self;
-}
+has 'buffer' => (
+	isa        => 'Str'
+	, is       => 'ro'
+	, default  => ''
+	, metaclass => 'String'
 
-sub clone {
-	my $self = shift;
-	my $buffer = '';
-	my $clone = bless \$buffer, ref $self;
-}
+	, provides  => {
+		append  => 'append_to_buffer'
+		, clear => 'clear_buffer'
+	}
+
+);
+
+sub clone { +shift->new(@_); }
+
+sub get_one_start { $_[0]->append_to_buffer( join '', @{$_[1]} ); }
 
 #------------------------------------------------------------------------------
 # get() is inherited from POE::Filter.
@@ -29,16 +33,11 @@ sub clone {
 # changing and proper input flow control.  Although it's kind of
 # pointless for Stream, but it has to follow the proper interface.
 
-sub get_one_start {
-	my ($self, $stream) = @_;
-	$$self .= join '', @$stream;
-}
-
 sub get_one {
 	my $self = shift;
-	return [ ] unless length $$self;
-	my $chunk = $$self;
-	$$self = '';
+	return [ ] unless length $self->buffer;
+	my $chunk = $self->buffer;
+	$self->clear_buffer;
 	return [ $chunk ];
 }
 
@@ -49,8 +48,11 @@ sub put {
 
 sub get_pending {
 	my $self = shift;
-	return [ $$self ] if length $$self;
-	return undef;
+	
+	return defined $self->buffer && length $self->buffer
+		? [ $self->buffer ]
+		: undef
+	;
 }
 
 1;
