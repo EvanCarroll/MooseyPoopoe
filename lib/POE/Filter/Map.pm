@@ -6,6 +6,7 @@ use Moose;
 with qw/
 	POE::Filter
 	POE::Filter::Roles::CodeGetAndPut
+	POE::Filter::Roles::ArrayBuffer
 /;
 
 use namespace::clean -except => 'meta';

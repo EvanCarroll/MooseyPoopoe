@@ -6,21 +6,22 @@ use Moose;
 with qw/
 	POE::Filter
 	POE::Filter::Roles::CodeGetAndPut
+	POE::Filter::Roles::ArrayBuffer
 /;
 
 sub get_one {
-  my $self = shift;
+	my $self = shift;
 
-  # Must be a loop so that the buffer will be altered as items are
-  # tested.
-  while (@{$self->buffer}) {
-    my $next_record = shift @{$self->buffer};
-    return [ $next_record ] if (
-      grep { $self->Get->($_) } $next_record
-    );
-  }
+	# Must be a loop so that the buffer will be altered as items are
+	# tested.
+	while (@{$self->buffer}) {
+		my $next_record = shift @{$self->buffer};
+		return [ $next_record ] if (
+			grep { $self->Get->($_) } $next_record
+		);
+	}
 
-  return [ ];
+	return [ ];
 }
 
 sub put {
@@ -41,7 +42,7 @@ sub BUILDARGS {
 	\%params;
 }
 
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
