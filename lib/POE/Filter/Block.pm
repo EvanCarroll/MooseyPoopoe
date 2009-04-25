@@ -1,14 +1,12 @@
 package POE::Filter::Block;
 use Moose;
 use MooseX::AttributeHelpers;
+use Moose::Util::TypeConstraints;
 
 use strict;
 with 'POE::Filter';
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-use Carp qw(croak);
-
 
 # get() is inherited from POE::Filter.
 #------------------------------------------------------------------------------
@@ -16,8 +14,8 @@ use Carp qw(croak);
 # retrieve one filtered block at a time.  This is necessary for filter
 # changing and proper input flow control.
 
+use namespace::clean -except => 'meta';
 
-use Moose::Util::TypeConstraints;
 subtype 'Natural'
 	=> as 'Int'
 	=> where { int($_) > 0 }
@@ -91,7 +89,7 @@ has 'expected_size' => (
 
 sub _trigger_blocksize_lengthcodec {
 	my $self = shift;
-	croak "Can't use both LengthCodec and BlockSize at the same time"
+	Carp::croak "Can't use both LengthCodec and BlockSize at the same time"
 		if $self->has_block_size && $self->has_length_codec
 	;
 };
@@ -197,10 +195,12 @@ sub get_pending {
 
 sub BUILDARGS {
 	my $type = shift;
-	croak "$type : Must be given an even number of parameters" if @_ & 1;
+	Carp::croak "$type : Must be given an even number of parameters" if @_ & 1;
 	my %params = @_;
 	\%params;
 }
+
+__PACKAGE__->meta->make_immutable;
 
 
 1;
