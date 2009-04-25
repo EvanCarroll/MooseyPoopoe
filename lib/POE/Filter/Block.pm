@@ -1,13 +1,10 @@
-# $Id: Block.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
 package POE::Filter::Block;
+use Moose;
 
 use strict;
-use POE::Filter;
+with 'POE::Filter';
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Carp qw(croak);
 
