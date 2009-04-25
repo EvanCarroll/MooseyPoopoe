@@ -1,9 +1,12 @@
-# $Id: Stream.pm 2447 2009-02-17 05:04:43Z rcaputo $
 package POE::Filter::Stream;
+use strict;
+
 use Moose;
 use MooseX::AttributeHelpers;
 
 with 'POE::Filter';
+
+use namespace::clean -except => 'meta';
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
