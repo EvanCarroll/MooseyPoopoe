@@ -5,7 +5,10 @@ use Moose;
 use POE::Filter;
 use Carp qw();
 
-with 'POE::Filter';
+with qw/
+	POE::Filter
+	POE::Filter::Roles::ScalarBuffer
+/;
 
 our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
@@ -110,8 +113,6 @@ has 'thaw' => (
 	}
 );
 
-has 'buffer' => ( isa => 'Str', is => 'rw' );
-
 ## Why couldn't this init_arg just be compression
 has 'compress' => (
 	isa        => 'Str' ## XXX Tests require accepting int(9) as true -EC
@@ -129,14 +130,6 @@ has 'compress' => (
 	}
 );
 
-# 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
-# retrieve one filtered block at a time.  This is necessary for filter
-# changing and proper input flow control.
-sub get_one_start {
-  my ($self, $stream) = @_;
-  $self->{BUFFER} .= join('', @$stream);
-}
-
 sub get_one {
   my $self = shift;
 
@@ -144,12 +137,11 @@ sub get_one {
   BEGIN { eval { require bytes } and bytes->import; }
 
   if (
-    $self->{BUFFER} =~ /^(\d+)\0/ and
-    length($self->{BUFFER}) >= $1 + length($1) + 1
+    $self->buffer =~ /^(\d+)\0/ and
+    length($self->buffer) >= $1 + length($1) + 1
   ) {
-    substr($self->{BUFFER}, 0, length($1) + 1) = "";
-    my $return = substr($self->{BUFFER}, 0, $1);
-    substr($self->{BUFFER}, 0, $1) = "";
+    $self->substr_buffer( 0, length($1) + 1, '' );
+    my $return = $self->substr_buffer( 0, $1, '');
     $return = Compress::Zlib::uncompress($return) if $self->compress;
     return [ $self->thaw->($return) ];
   }
@@ -173,15 +165,6 @@ sub put {
 
   \@raw;
 }
-
-# Return everything we have outstanding.  Do not destroy our framing
-# buffer, though.
-sub get_pending {
-  my $self = shift;
-  return undef unless length $self->{BUFFER};
-  return [ $self->{BUFFER} ];
-}
-
 
 ## Because this shitty framework wants list arguments
 sub BUILDARGS {
