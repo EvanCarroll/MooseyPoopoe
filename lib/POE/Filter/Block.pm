@@ -9,14 +9,6 @@ with qw/
 	POE::Filter::Roles::ScalarBuffer
 /;
 
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# get() is inherited from POE::Filter.
-#------------------------------------------------------------------------------
-# 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
-# retrieve one filtered block at a time.  This is necessary for filter
-# changing and proper input flow control.
-
 use namespace::clean -except => 'meta';
 
 subtype 'LengthCodec'
@@ -54,19 +46,12 @@ has 'decoder' => (
 		return $self->has_length_codec
 			? $self->length_codec->[1]
 			: sub {
-				##	unless (${$_[0]} =~ s/^(\d+)\0//s) {
-				##		warn length($1), " strange bytes ($1) removed from stream"
-				##			if ${$_[0]} =~ s/^(\D+)//s;
-				##		return;
-				##	}
-				##	return $1;
-my $stuff = shift;
-unless ($$stuff =~ s/^(\d+)\0//s) {
-  warn length($1), " strange bytes removed from stream"
-    if $$stuff =~ s/^(\D+)//s;
-  return;
-}
-return $1;
+					unless (${$_[0]} =~ s/^(\d+)\0//s) {
+						warn length($1), " strange bytes ($1) removed from stream"
+							if ${$_[0]} =~ s/^(\D+)//s;
+						return;
+					}
+					return $1;
 				}
 		;
 	}
