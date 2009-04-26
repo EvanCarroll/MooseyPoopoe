@@ -13,15 +13,13 @@ sub POE::Kernel::TRACE_DEFAULT  () { 1 }
 sub POE::Kernel::TRACE_FILENAME () { "./test-output.err" }
 
 use TestFilter;
-use Test::More tests => 18 + $COUNT_FILTER_INTERFACE + 2*$COUNT_FILTER_STANDARD;
+use Test::More tests => 17 + $COUNT_FILTER_INTERFACE + 2*$COUNT_FILTER_STANDARD;
 
 use_ok("POE::Filter::Line");
 test_filter_interface("POE::Filter::Line");
 
 test_new("new(): even number of args", "one", "two", "odd");
 test_new("new(): empty Literal", Literal => "");
-# What is Regexp?  I see InputRegexp, but not Regexp
-test_new("new(): Literal and Regexp", Regexp => "\r", Literal => "\n");
 test_new("new(): Literal and InputRegexp", InputRegexp => "\r", Literal => "\n");
 test_new("new(): Literal and InputLiteral", InputLiteral => "\r", Literal => "\n");
 test_new("new(): Literal and OutputLiteral", OutputLiteral => "\r", Literal => "\n");
