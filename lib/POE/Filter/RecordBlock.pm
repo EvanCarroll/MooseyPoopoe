@@ -2,10 +2,7 @@ package POE::Filter::RecordBlock;
 use strict;
 
 use Moose;
-use MooseX::AttributeHelpers;
 with 'POE::Filter';
-
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use namespace::clean -except => 'meta';
 
@@ -18,15 +15,9 @@ has 'blocksize' => (
 
 has 'checkput' => ( isa  => 'Bool' , is => 'rw', init_arg => 'CheckPut' );
 
-has 'getbuffer' => (
+has [qw/getbuffer putbuffer/] => (
 	isa => 'ArrayRef'
-	, is => 'ro'
-	, metaclass => 'Collection::Array'
-	, default => sub { +[] }
-);
-
-has 'putbuffer' => (
-	isa => 'ArrayRef'
+	, traits => [qw(NoClone)]
 	, is => 'ro'
 	, default => sub { +[] }
 );
@@ -75,15 +66,6 @@ sub put_pending {
 	return undef unless $self->checkput;
 	return undef unless @{$self->putbuffer};
 	return [ @{$self->putbuffer} ];
-}
-
-sub clone {
-	my $self = shift;
-	# TODO this should use hash ref not list on const
-	$self->meta->name->new(
-		BlockSize  => $self->blocksize
-		, CheckPut => $self->checkput
-	);
 }
 
 sub BUILDARGS {
