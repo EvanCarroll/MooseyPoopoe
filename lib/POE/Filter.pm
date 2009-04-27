@@ -4,7 +4,7 @@ use Moose::Util::TypeConstraints;
 use Moose::Role;
 use strict;
 
-our $VERSION = do {my($r)=(q$Revision: 2490 $=~/(\d+)/);sprintf"1.%04d",$r};
+with qw(MooseX::Clone);
 
 use Carp qw(croak);
 
@@ -32,23 +32,23 @@ sub get {
   return \@return;
 }
 
-sub clone {
-  my $self = shift;
-
-  my $nself;
-	if ( ref $self eq 'ARRAY' ) {
-  	my $buf = (ref($self->[0]) eq 'ARRAY') ? [ ] : '';
-		bless [
-	    $buf,                # BUFFER
-	    @$self[1..$#$self],  # everything else
-		], ref $self;
-	}
-	else {
-		return bless { %$self }, ref $self;
-	}
-
-  return $nself;
-}
+## sub clone {
+##   my $self = shift;
+## 
+##   my $nself;
+## 	if ( ref $self eq 'ARRAY' ) {
+##   	my $buf = (ref($self->[0]) eq 'ARRAY') ? [ ] : '';
+## 		bless [
+## 	    $buf,                # BUFFER
+## 	    @$self[1..$#$self],  # everything else
+## 		], ref $self;
+## 	}
+## 	else {
+## 		return bless { %$self }, ref $self;
+## 	}
+## 
+##   return $nself;
+## }
 
 1;
 
