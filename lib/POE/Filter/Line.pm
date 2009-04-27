@@ -176,34 +176,43 @@ sub put {
 ## thought it was good idea to marshell a flag as an undef state
 ## for a totally seperate paramater (autodetect on undef)
 sub BUILDARGS {
-	my $type = shift;
-	Carp::croak "$type requires an even number of parameters" if @_ and @_ & 1;
-	my %params = @_;
+	my ( $type, @args ) = @_;
+	if ( @args == 1 && ref $args[0] eq 'HASH' ) {
+		return $args[0];
+	}
+	elsif ( @args % 2 ) {
+		Carp::croak "$type must be given an even number of parameters";
+	}
+	else {
+		my ( %params ) = @args;
 
-	if ( exists $params{Literal} ) {
-		Carp::croak 'Conflicting arguments: Literal and InputLiteral, OutputLiteral, autodetect, or InputRegex'
-			if exists $params{OutputLiteral}
-			|| exists $params{InputLiteral}
-			|| exists $params{autodetect}
-			|| exists $params{InputRegexp}
-		;
-		if ( !defined $params{Literal} ) { ## Literal Expansion
-			delete $params{Literal};
-			$params{autodetect} ||= 1;
+		if ( exists $params{Literal} ) {
+			Carp::croak 'Conflicting arguments: Literal and InputLiteral, OutputLiteral, autodetect, or InputRegex'
+				if exists $params{OutputLiteral}
+				|| exists $params{InputLiteral}
+				|| exists $params{autodetect}
+				|| exists $params{InputRegexp}
+			;
+			if ( !defined $params{Literal} ) { ## Literal Expansion
+				delete $params{Literal};
+				$params{autodetect} ||= 1;
+			}
 		}
+		
+		if ( exists $params{InputLiteral} ) {
+			if ( exists $params{InputRegexp} ) {
+				Carp::croak "Conflicting arguments: cannot have both InputRegexp and InputLiteral (or Literal)"
+			}
+			elsif ( !defined $params{InputLiteral} ) {
+				delete $params{InputLiteral};
+				$params{autodetect} ||= 1;
+			}
+		}
+	
+		\%params
+	
 	}
 	
-	if ( exists $params{InputLiteral} ) {
-		if ( exists $params{InputRegexp} ) {
-			Carp::croak "Conflicting arguments: cannot have both InputRegexp and InputLiteral (or Literal)"
-		}
-		elsif ( !defined $params{InputLiteral} ) {
-			delete $params{InputLiteral};
-			$params{autodetect} ||= 1;
-		}
-	}
-	
-	\%params
 }
 
 
