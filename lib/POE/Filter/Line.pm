@@ -5,14 +5,13 @@ use Moose;
 use POE::Filter::Types::MakeRegexpRef ':all';
 use MooseX::ClassAttribute;
 use MooseX::Types::Common::String qw/NonEmptyStr/;
-use MooseX::Clone;
 
 with qw/
 	POE::Filter
 	POE::Filter::Roles::ScalarRefBuffer
 /;
 
-use Carp qw();
+use namespace::clean -except => 'meta';
 
 ## XXX the original non-moose versoin of this module used to die
 ##     on unknown args maybe we need MX::StrictConstructor
@@ -91,8 +90,6 @@ has '_autodetect_stage' => (
 );
 
 
-# TODO There is a lot of code duplicated here.  What can be done?
-# re: WTF did the above guy give up, says a lot for quality of code in POE -EC
 sub get_one {
 	my $self = shift;
 
@@ -105,8 +102,7 @@ sub get_one {
 
 			my $re = $self->input_regex;
 
-			last LINE
-			unless ${$self->buffer} =~ s/^(.*?)($re)//s;
+			last LINE unless ${$self->buffer} =~ s/^(.*?)($re)//s;
 			#DEBUG and warn "got line: <<", unpack('H*', $1), ">>\n";
 
 			return [ $1 ];
@@ -155,14 +151,11 @@ sub get_one {
 				# newline.  End autodetection, post-process the found newline,
 				# and loop to see if there are other lines in the buffer.
 				$self->_autodetect_make_complete;
-				next LINE;
 			}
 
 		}
 
-		die "consistency error: AUTODETECT_STATE = " . $self->_autodetect_stage||'' . "\n";
 	}
-
 
 	return [ ];
 }
@@ -179,8 +172,8 @@ sub put {
 	[map $_ . $self->output_literal, @$lines]
 }
 
-## Here we have some dragons because this stupid fucking framework
-## thought it was good idea to marshell a flag as an undef state 
+## Here there be dragons - this stupid fucking framework
+## thought it was good idea to marshell a flag as an undef state
 ## for a totally seperate paramater (autodetect on undef)
 sub BUILDARGS {
 	my $type = shift;
@@ -214,7 +207,7 @@ sub BUILDARGS {
 }
 
 
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
