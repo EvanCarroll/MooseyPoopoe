@@ -3,14 +3,11 @@ use strict;
 
 use Moose;
 use POE::Filter;
-use Carp qw();
 
 with qw/
 	POE::Filter
-	POE::Filter::Roles::ScalarBuffer
+	POE::Filter::Roles::ScalarRefBuffer
 /;
-
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Moose::Util::TypeConstraints;
 
@@ -137,11 +134,11 @@ sub get_one {
   BEGIN { eval { require bytes } and bytes->import; }
 
   if (
-    $self->buffer =~ /^(\d+)\0/ and
-    length($self->buffer) >= $1 + length($1) + 1
+    ${$self->buffer} =~ /^(\d+)\0/ and
+    length(${$self->buffer}) >= $1 + length($1) + 1
   ) {
-    $self->substr_buffer( 0, length($1) + 1, '' );
-    my $return = $self->substr_buffer( 0, $1, '');
+    substr( ${$self->buffer}, 0, length($1) + 1, '' );
+    my $return = substr( ${$self->buffer}, 0, $1, '' );
     $return = Compress::Zlib::uncompress($return) if $self->compress;
     return [ $self->thaw->($return) ];
   }
