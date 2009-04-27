@@ -1,20 +1,21 @@
 package POE::Filter::Block;
+use strict;
+
 use Moose;
-use MooseX::AttributeHelpers;
 use Moose::Util::TypeConstraints;
 
-use strict;
 with qw/
 	POE::Filter
-	POE::Filter::Roles::ScalarBuffer
+	POE::Filter::Roles::ScalarRefBuffer
 /;
 
-use namespace::clean -except => 'meta';
-
+use MooseX::AttributeHelpers;
 subtype 'LengthCodec'
 	=> as 'ArrayRef[CodeRef]'
 	=> where { scalar @$_ == 2 }
 ;
+
+use namespace::clean -except => 'meta';
 
 has 'length_codec' => (
 	isa         => 'LengthCodec'
@@ -87,9 +88,9 @@ sub get_one {
 	# If a block size is specified, then pull off a block of that many
 	# bytes.
 	if ($self->has_block_size) {
-		return [ ] unless length($self->buffer) >= $self->block_size;
+		return [ ] unless length(${$self->buffer}) >= $self->block_size;
 
-		my $block = $self->substr_buffer( 0, $self->block_size, '' );
+		my $block = substr( ${$self->buffer}, 0, $self->block_size, '' );
 		return [ $block ];
 	}
 
@@ -104,20 +105,16 @@ sub get_one {
 			$expected_size = $self->expected_size
 		}
 		else {
-			# XXX There should be a way with moose to get the ref straight to the buffer
-			#     That way we don't have to copy
-			my $buffer = $self->buffer;
-			$expected_size = $self->decoder->( \$buffer );
-			$self->buffer( $buffer );
+			$expected_size = $self->decoder->( $self->buffer );
 		}
 
 		if ( $expected_size ) {
-			if ( length($self->buffer) < $expected_size ) {
+			if ( length(${$self->buffer}) < $expected_size ) {
 				$self->expected_size( $expected_size )
 			}
 			else {
 				$self->clear_expected_size;
-				return [ $self->substr_buffer( 0, $expected_size, '' ) ]
+				return [ substr( ${$self->buffer}, 0, $expected_size, '' ) ]
 			}
 		}
 
