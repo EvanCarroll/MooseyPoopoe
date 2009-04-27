@@ -6,19 +6,15 @@ use MooseX::AttributeHelpers;
 
 with qw/
 	POE::Filter
-	POE::Filter::Roles::ScalarBuffer
+	POE::Filter::Roles::ScalarRefBuffer
 /;
 
 use namespace::clean -except => 'meta';
-
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 ## XXX All of the functions names in this modules are *retarded*
 ## X get_one_start: appends an array, via ArraRef onto the buffer
 ## X put: returns the array referenced by an ArrayRef
 ## X get_pending: an array ref of the remaining buffer
-
-# get() is inherited from POE::Filter.
 
 # 2001-07-27 RCC: The get_one() variant of get() allows Wheel::Xyz to
 # retrieve one filtered block at a time.  This is necessary for filter
@@ -28,9 +24,9 @@ our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 sub get_one {
 	my $self = shift;
 	
-	if ( length $self->buffer ) {
-		my $chunk = $self->buffer;
-		$self->clear_buffer;
+	if ( length ${$self->buffer} ) {
+		my $chunk = ${$self->buffer};
+		${$self->buffer} = '';
 		return [ $chunk ];
 	}
 	else {
@@ -41,9 +37,7 @@ sub get_one {
 
 sub put {  [ @{$_[1]} ]  }
 
-sub clone { +shift->new(@_); }
-
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
