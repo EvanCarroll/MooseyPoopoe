@@ -1,61 +1,37 @@
-# 2001/01/25 shizukesa@pobox.com
+package POE::Filter::Stackable;
+use strict;
 
-# This implements a filter stack, which turns ReadWrite into something
-# very, very interesting.
+use Moose;
+use MooseX::AttributeHelpers;
+use MooseX::Clone;
 
 # 2001-07-26 RCC: I have no idea how to make this support get_one, so
 # I'm not going to right now.
 
-package POE::Filter::Stackable;
+with 'POE::Filter';
 
-use strict;
-use POE::Filter;
+use namespace::clean -except => 'meta';
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+has 'filters' => (
+	isa   => 'ArrayRef[POE::Filter]'
+	, is  => 'ro'
 
-use Carp qw(croak);
-
-sub FILTERS () { 0 }
-
-#------------------------------------------------------------------------------
-
-sub new {
-  my $type = shift;
-  croak "$type must be given an even number of parameters" if @_ & 1;
-  my %params = @_;
-
-  $params{Filters} = [ ] unless defined $params{Filters};
-  # Sanity check the filters
-  if ( ref $params{Filters} eq 'ARRAY') {
-
-    my $self = bless [
-      $params{Filters}, # FILTERS
-    ], $type;
-
-    return $self;
-  } else {
-    croak "Filters is not an ARRAY reference!";
-  }
-}
-
-sub clone {
-  my $self = shift;
-  my $clone = bless [
-    [ ],    # FILTERS
-  ], ref $self;
-  foreach my $filter (@{$self->[FILTERS]}) {
-    push (@{$clone->[FILTERS]}, $filter->clone());
-  }
-  $clone;
-}
-
-#------------------------------------------------------------------------------
+	, init_arg   => 'Filters'
+	, default    => sub { +[] }
+	, auto_deref => 1
+	, traits     => [qw/Clone/]
+	
+	, metaclass => 'Collection::Array'
+	, provides  => {
+		'push'      => 'push'
+		, 'unshift' => 'unshift'
+		, 'get'     => 'get_filter'
+	}
+);
 
 sub get_one_start {
-  my ($self, $data) = @_;
-  $self->[FILTERS]->[0]->get_one_start($data);
+	my ($self, $data) = @_;
+	$self->get_filter(0)->get_one_start($data);
 }
 
 # RCC 2005-06-28: get_one() needs to strobe through all the filters
@@ -68,119 +44,82 @@ sub get_one_start {
 # record, or until none of the filters exchange data.
 
 sub get_one {
-  my ($self) = @_;
+	my ($self) = @_;
 
-  my $return = [ ];
+	my $return = [ ];
 
-  while (!@$return) {
-    my $exchanged = 0;
+	while (!@$return) {
+		my $exchanged = 0;
 
-    foreach my $filter (@{$self->[FILTERS]}) {
+		foreach my $filter (@{$self->filters}) {
 
-      # If we have something to input to the next filter, do that.
-      if (@$return) {
-        $filter->get_one_start($return);
-        $exchanged++;
-      }
+		# If we have something to input to the next filter, do that.
+		if (@$return) {
+			$filter->get_one_start($return);
+			$exchanged++;
+		}
 
-      # Get what we can from the current filter.
-      $return = $filter->get_one();
-    }
+		# Get what we can from the current filter.
+		$return = $filter->get_one();
+		}
 
-    last unless $exchanged;
-  }
+		last unless $exchanged;
+	}
 
-  return $return;
+	return $return;
 }
-
-# get() is inherited from POE::Filter.
-
-#------------------------------------------------------------------------------
 
 sub put {
-  my ($self, $data) = @_;
-  foreach my $filter (reverse @{$self->[FILTERS]}) {
-    $data = $filter->put($data);
-    last unless @$data;
-  }
-  $data;
+	my ($self, $data) = @_;
+	foreach my $filter (reverse @{$self->filters}) {
+		$data = $filter->put($data);
+		last unless @$data;
+	}
+	$data;
 }
-
-#------------------------------------------------------------------------------
 
 sub get_pending {
-  my ($self) = @_;
-  my $data;
-  for (@{$self->[FILTERS]}) {
-    $_->put($data) if $data && @{$data};
-    $data = $_->get_pending;
-  }
-  $data || [];
+	my ($self) = @_;
+	my $data;
+	for (@{$self->filters}) {
+		$_->put($data) if $data && @{$data};
+		$data = $_->get_pending;
+	}
+	$data || [];
 }
 
-#------------------------------------------------------------------------------
-
-sub filter_types {
-   map { ref($_) } @{$_[0]->[FILTERS]};
-}
-
-#------------------------------------------------------------------------------
-
-sub filters {
-  @{$_[0]->[FILTERS]};
-}
-
-#------------------------------------------------------------------------------
+sub filter_types { map { ref($_) } @{$_[0]->filters} }
 
 sub shift {
-  my ($self) = @_;
-  my $filter = shift @{$self->[FILTERS]};
-  my $pending = $filter->get_pending;
-  $self->[FILTERS]->[0]->put( $pending ) if $pending;
-  $filter;
+	my ($self) = @_;
+	my $filter = shift @{$self->filters};
+	my $pending = $filter->get_pending;
+	$self->get_filter(0)->put( $pending ) if $pending;
+	$filter;
 }
-
-#------------------------------------------------------------------------------
-
-sub unshift {
-  my ($self, @filters) = @_;
-
-  # Sanity check
-  foreach my $elem ( @filters ) {
-    if ( ! defined $elem or ! UNIVERSAL::isa( $elem, 'POE::Filter' ) ) {
-      croak "Filter element is not a POE::Filter instance!";
-    }
-  }
-
-  unshift(@{$self->[FILTERS]}, @filters);
-}
-
-#------------------------------------------------------------------------------
-
-sub push {
-  my ($self, @filters) = @_;
-
-  # Sanity check
-  foreach my $elem ( @filters ) {
-    if ( ! defined $elem or ! UNIVERSAL::isa( $elem, 'POE::Filter' ) ) {
-      croak "Filter element is not a POE::Filter instance!";
-    }
-  }
-
-  push(@{$self->[FILTERS]}, @filters);
-}
-
-#------------------------------------------------------------------------------
 
 sub pop {
-  my ($self) = @_;
-  my $filter = pop @{$self->[FILTERS]};
-  my $pending = $filter->get_pending;
-  $self->[FILTERS]->[-1]->put( $pending ) if $pending;
-  $filter;
+	my ($self) = @_;
+	my $filter = pop @{$self->filters};
+	my $pending = $filter->get_pending;
+	$self->get_filters(-1)->put( $pending ) if $pending;
+	$filter;
 }
 
-1;
+sub BUILDARGS {
+	my ( $type, @args ) = @_;
+	if ( @args == 1 && ref $args[0] eq 'HASH' ) {
+		return $args[0];
+	}
+	elsif ( @args % 2 ) {
+		Carp::croak "$type must be given an even number of parameters";
+	}
+	else {
+		return +{ @args };
+	}
+}
+
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
