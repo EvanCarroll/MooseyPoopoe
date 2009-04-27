@@ -1,24 +1,8 @@
-# $Id: HTTPD.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Filter::HTTPD Copyright 1998 Artur Bergman <artur@vogon.se>.
-
-# Thanks go to Gisle Aas for his excellent HTTP::Daemon.  Some of the
-# get code was copied out if, unfortunately HTTP::Daemon is not easily
-# subclassed for POE because of the blocking nature.
-
-# 2001-07-27 RCC: This filter will not support the newer get_one()
-# interface.  It gets single things by default, and it does not
-# support filter switching.  If someone absolutely needs to switch to
-# and from HTTPD filters, they should submit their request as a patch.
-
 package POE::Filter::HTTPD;
-
 use strict;
-use POE::Filter;
 
-use vars qw($VERSION @ISA);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-@ISA = qw(POE::Filter);
+use Moose;
+with 'POE::Filter';
 
 sub BUFFER        () { 0 }
 sub TYPE          () { 1 }
