@@ -2,212 +2,169 @@ package POE::Filter::Line;
 use strict;
 
 use Moose;
+use POE::Filter::Types::MakeRegexpRef ':all';
+use MooseX::ClassAttribute;
+use MooseX::Types::Common::String qw/NonEmptyStr/;
+use MooseX::Clone;
 
-with 'POE::Filter';
+with qw/
+	POE::Filter
+	POE::Filter::Roles::ScalarRefBuffer
+/;
 
-our $VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+use Carp qw();
 
-use Carp qw(carp croak);
+## XXX the original non-moose versoin of this module used to die
+##     on unknown args maybe we need MX::StrictConstructor
 
-sub DEBUG () { 0 }
+class_has '_default_input_line_terminator' => (
+	isa  => 'RegexpRef'
+	, is => 'ro'
+	, default => sub { "\x0D\x0A?|\x0A\x0D?" }
+);
 
-sub FRAMING_BUFFER   () { 0 }
-sub INPUT_REGEXP     () { 1 }
-sub OUTPUT_LITERAL   () { 2 }
-sub AUTODETECT_STATE () { 3 }
+class_has '_default_output_line_terminator' => (
+	isa  => NonEmptyStr
+	, is => 'ro'
+	, default => "\x0D\x0A"
+);
 
-sub AUTO_STATE_DONE   () { 0x00 }
-sub AUTO_STATE_FIRST  () { 0x01 }
-sub AUTO_STATE_SECOND () { 0x02 }
+has 'literal' => (
+	isa  => NonEmptyStr
+	, is => 'ro'
+	, init_arg => 'Literal'
+);
 
-#------------------------------------------------------------------------------
-
-sub new {
-  my $type = shift;
-
-  croak "$type requires an even number of parameters" if @_ and @_ & 1;
-  my %params = @_;
-
-  croak "$type cannot have both Regexp and Literal line endings" if (
-    defined $params{Regexp} and defined $params{Literal}
-  );
-
-  my ($input_regexp, $output_literal);
-  my $autodetect = AUTO_STATE_DONE;
-
-  # Literal newline for both incoming and outgoing.  Every other known
-  # parameter conflicts with this one.
-  if (defined $params{Literal}) {
-    croak "A defined Literal must have a nonzero length"
-      unless defined($params{Literal}) and length($params{Literal});
-    $input_regexp   = quotemeta $params{Literal};
-    $output_literal = $params{Literal};
-    if (
-      exists $params{InputLiteral} or # undef means something
-      defined $params{InputRegexp} or
-      defined $params{OutputLiteral}
-    ) {
-      croak "$type cannot have Literal with any other parameter";
-    }
-  }
-
-  # Input and output are specified separately, then.
-  else {
-
-    # Input can be either a literal or a regexp.  The regexp may be
-    # compiled or not; we don't rightly care at this point.
-    if (exists $params{InputLiteral}) {
-      $input_regexp = $params{InputLiteral};
-
-      # InputLiteral is defined.  Turn it into a regexp and be done.
-      # Otherwise we will autodetect it.
-      if (defined($input_regexp) and length($input_regexp)) {
-        $input_regexp = quotemeta $input_regexp;
-      }
-      else {
-        $autodetect   = AUTO_STATE_FIRST;
-        $input_regexp = '';
-      }
-
-      croak "$type cannot have both InputLiteral and InputRegexp"
-        if defined $params{InputRegexp};
-    }
-    elsif (defined $params{InputRegexp}) {
-      $input_regexp = $params{InputRegexp};
-      croak "$type cannot have both InputLiteral and InputRegexp"
-        if defined $params{InputLiteral};
-    }
-    else {
-      $input_regexp = "(\\x0D\\x0A?|\\x0A\\x0D?)";
-    }
-
-    if (defined $params{OutputLiteral}) {
-      $output_literal = $params{OutputLiteral};
-    }
-    else {
-      $output_literal = "\x0D\x0A";
-    }
-  }
-
-  delete @params{qw(Literal InputLiteral OutputLiteral InputRegexp)};
-  carp("$type ignores unknown parameters: ", join(', ', sort keys %params))
-    if scalar keys %params;
-
-  my $self = bless [
-    '',              # FRAMING_BUFFER
-    $input_regexp,   # INPUT_REGEXP
-    $output_literal, # OUTPUT_LITERAL
-    $autodetect,     # AUTODETECT_STATE
-  ], $type;
-
-  DEBUG and warn join ':', @$self;
-
-  $self;
+foreach ( qw/input output/ ) {
+	has ( "${_}_literal" => (
+		isa  => 'Str | Undef'
+		, is => 'rw'
+		, metaclass => 'String'
+		, provides => {
+				append => "_append_to_${_}_literal"
+			}
+		, init_arg  => ucfirst($_) . 'Literal'
+		, predicate => "has_${_}_literal"
+		, traits => [qw(Clone)]
+	) );
 }
 
+has '+output_literal' => ( default => sub {
+	$_[0]->literal || $_[0]->_default_output_line_terminator
+} );
 
-#------------------------------------------------------------------------------
-# get() is inherited from POE::Filter.
+has '+input_literal' => ( default => sub {
+		$_[0]->literal || $_[0]->_default_input_line_terminator
+} );
 
-#------------------------------------------------------------------------------
-# 2001-07-27 RCC: Add get_one_start() and get_one() to correct filter
-# changing and make input flow control possible.
 
-sub get_one_start {
-  my ($self, $stream) = @_;
+has 'input_regex' => (
+	isa        => MakeRegexpRef
+	, is       => 'rw'
+	, coerce   => 1
+	, init_arg => 'InputRegexp'
+	, lazy     => 1
+	, default  => sub {
+		my $self = shift;
+		$self->input_literal;
+	}
+);
 
-  DEBUG and do {
-    my $temp = join '', @$stream;
-    $temp = unpack 'H*', $temp;
-    warn "got some raw data: $temp\n";
-  };
+has 'autodetect' => (
+	isa       => 'Bool'
+	, is      => 'ro'
+	, lazy    => 1
+	, default => sub { $_[0]->input_literal ? 0 : 1 }
+);
 
-  $self->[FRAMING_BUFFER] .= join '', @$stream;
-}
+has '_autodetect_stage' => (
+	isa  => 'Int'
+	, is => 'rw'
+	, default   => 1
+	, clearer   => '_autodetect_make_complete'
+	, predicate => '_autodetect_in_progress'
+	
+	, metaclass => 'Counter'
+	, provides  => {
+		inc => '_autodetect_next_stage'
+	}
+);
+
 
 # TODO There is a lot of code duplicated here.  What can be done?
-
+# re: WTF did the above guy give up, says a lot for quality of code in POE -EC
 sub get_one {
-  my $self = shift;
+	my $self = shift;
 
-  # Process as many newlines an we can find.
-  LINE: while (1) {
+	# Process as many newlines an we can find.
+	LINE: while (1) {
 
-    # Autodetect is done, or it never started.  Parse some buffer!
-    unless ($self->[AUTODETECT_STATE]) {
-      DEBUG and warn unpack 'H*', $self->[INPUT_REGEXP];
-      last LINE
-        unless $self->[FRAMING_BUFFER] =~ s/^(.*?)$self->[INPUT_REGEXP]//s;
-      DEBUG and warn "got line: <<", unpack('H*', $1), ">>\n";
+		# Autodetect is done, or it never started.  Parse some buffer!
+		if ( ! $self->autodetect || ! $self->_autodetect_in_progress ) {
+			#DEBUG and warn unpack 'H*', $self->[INPUT_REGEXP];
 
-      return [ $1 ];
-    }
+			my $re = $self->input_regex;
 
-    # Waiting for the first line ending.  Look for a generic newline.
-    if ($self->[AUTODETECT_STATE] & AUTO_STATE_FIRST) {
-      last LINE
-        unless $self->[FRAMING_BUFFER] =~ s/^(.*?)(\x0D\x0A?|\x0A\x0D?)//;
+			last LINE
+			unless ${$self->buffer} =~ s/^(.*?)($re)//s;
+			#DEBUG and warn "got line: <<", unpack('H*', $1), ">>\n";
 
-      my $line = $1;
+			return [ $1 ];
+		}
+		else {
 
-      # The newline can be complete under two conditions.  First: If
-      # it's two characters.  Second: If there's more data in the
-      # framing buffer.  Loop around in case there are more lines.
-      if ( (length($2) == 2) or
-           (length $self->[FRAMING_BUFFER])
-         ) {
-        DEBUG and warn "detected complete newline after line: <<$1>>\n";
-        $self->[INPUT_REGEXP] = $2;
-        $self->[AUTODETECT_STATE] = AUTO_STATE_DONE;
-      }
+			# Waiting for the first line ending.  Look for a generic newline.
+			if ( $self->_autodetect_stage == 1 ) {
+				my $line_term = $self->_default_input_line_terminator;
+				last LINE unless ${$self->buffer} =~ s/^(.*?)($line_term)//;
 
-      # The regexp has matched a potential partial newline.  Save it,
-      # and move to the next state.  There is no more data in the
-      # framing buffer, so we're done.
-      else {
-        DEBUG and warn "detected suspicious newline after line: <<$1>>\n";
-        $self->[INPUT_REGEXP] = $2;
-        $self->[AUTODETECT_STATE] = AUTO_STATE_SECOND;
-      }
+				my $line = $1;
 
-      return [ $line ];
-    }
+				# The newline can be complete under two conditions.  First: If
+				# it's two characters.  Second: If there's more data in the
+				# framing buffer.  Loop around in case there are more lines.
+				if ( length($2) == 2 or length ${$self->buffer} ) {
+					#DEBUG and warn "detected complete newline after line: <<$1>>\n";
+					$self->input_literal( $2 );
+					$self->_autodetect_make_complete
+				}
 
-    # Waiting for the second line beginning.  Bail out if we don't
-    # have anything in the framing buffer.
-    if ($self->[AUTODETECT_STATE] & AUTO_STATE_SECOND) {
-      return [ ] unless length $self->[FRAMING_BUFFER];
+				# The regexp has matched a potential partial newline.  Save it,
+				# and move to the next state.  There is no more data in the
+				# framing buffer, so we're done.
+				else {
+					#DEBUG and warn "detected suspicious newline after line: <<$1>>\n";
+					$self->input_literal( $2 );
+					$self->_autodetect_next_stage
+				}
 
-      # Test the first character to see if it completes the previous
-      # potentially partial newline.
-      if (
-        substr($self->[FRAMING_BUFFER], 0, 1) eq
-        ( $self->[INPUT_REGEXP] eq "\x0D" ? "\x0A" : "\x0D" )
-      ) {
+				return [ $line ];
+			}
 
-        # Combine the first character with the previous newline, and
-        # discard the newline from the buffer.  This is two statements
-        # for backward compatibility.
-        DEBUG and warn "completed newline after line: <<$1>>\n";
-        $self->[INPUT_REGEXP] .= substr($self->[FRAMING_BUFFER], 0, 1);
-        substr($self->[FRAMING_BUFFER], 0, 1) = '';
-      }
-      elsif (DEBUG) {
-        warn "decided prior suspicious newline is okay\n";
-      }
+			# Waiting for the second line beginning.  Bail out if we don't
+			# have anything in the framing buffer.
+			if ( $self->_autodetect_stage == 2 ) {
+				return [ ] unless length ${$self->buffer};
 
-      # Regardless, whatever is in INPUT_REGEXP is now a complete
-      # newline.  End autodetection, post-process the found newline,
-      # and loop to see if there are other lines in the buffer.
-      $self->[INPUT_REGEXP] = $self->[INPUT_REGEXP];
-      $self->[AUTODETECT_STATE] = AUTO_STATE_DONE;
-      next LINE;
-    }
+				#DEBUG and warn "completed newline after line: <<$1>>\n";
+				$self->_append_to_input_literal( substr(${$self->buffer}, 0, 1, '') )
+					if substr(${$self->buffer},0, 1) eq ( $self->input_literal eq "\x0D" ? "\x0A" : "\x0D" )
+				;
 
-    die "consistency error: AUTODETECT_STATE = $self->[AUTODETECT_STATE]";
-  }
+				# Regardless, whatever is in INPUT_REGEXP is now a complete
+				# newline.  End autodetection, post-process the found newline,
+				# and loop to see if there are other lines in the buffer.
+				$self->_autodetect_make_complete;
+				next LINE;
+			}
 
-  return [ ];
+		}
+
+		die "consistency error: AUTODETECT_STATE = " . $self->_autodetect_stage||'' . "\n";
+	}
+
+
+	return [ ];
 }
 
 #------------------------------------------------------------------------------
@@ -218,23 +175,44 @@ sub get_one {
 # join.  Bleah. ... why isn't the code doing what the comment says?
 
 sub put {
-  my ($self, $lines) = @_;
-
-  my @raw;
-  foreach (@$lines) {
-    push @raw, $_ . $self->[OUTPUT_LITERAL];
-  }
-
-  \@raw;
+	my ($self, $lines) = @_;
+	[map $_ . $self->output_literal, @$lines]
 }
 
-#------------------------------------------------------------------------------
+## Here we have some dragons because this stupid fucking framework
+## thought it was good idea to marshell a flag as an undef state 
+## for a totally seperate paramater (autodetect on undef)
+sub BUILDARGS {
+	my $type = shift;
+	Carp::croak "$type requires an even number of parameters" if @_ and @_ & 1;
+	my %params = @_;
 
-sub get_pending {
-  my $self = shift;
-  return [ $self->[FRAMING_BUFFER] ] if length $self->[FRAMING_BUFFER];
-  return undef;
+	if ( exists $params{Literal} ) {
+		Carp::croak 'Conflicting arguments: Literal and InputLiteral, OutputLiteral, autodetect, or InputRegex'
+			if exists $params{OutputLiteral}
+			|| exists $params{InputLiteral}
+			|| exists $params{autodetect}
+			|| exists $params{InputRegexp}
+		;
+		if ( !defined $params{Literal} ) { ## Literal Expansion
+			delete $params{Literal};
+			$params{autodetect} ||= 1;
+		}
+	}
+	
+	if ( exists $params{InputLiteral} ) {
+		if ( exists $params{InputRegexp} ) {
+			Carp::croak "Conflicting arguments: cannot have both InputRegexp and InputLiteral (or Literal)"
+		}
+		elsif ( !defined $params{InputLiteral} ) {
+			delete $params{InputLiteral};
+			$params{autodetect} ||= 1;
+		}
+	}
+	
+	\%params
 }
+
 
 1;
 
