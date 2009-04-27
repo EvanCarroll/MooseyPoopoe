@@ -2,13 +2,10 @@ package POE::Filter::HTTPD;
 use strict;
 
 use Moose;
-with 'POE::Filter';
-
-sub BUFFER        () { 0 }
-sub TYPE          () { 1 }
-sub FINISH        () { 2 }
-sub HEADER        () { 3 }
-sub CLIENT_PROTO  () { 4 }
+with qw/
+	POE::Filter
+	POE::Filter::Roles::ScalarRefBuffer
+/;
 
 use Carp qw(croak);
 use HTTP::Status qw( status_message RC_BAD_REQUEST RC_OK RC_LENGTH_REQUIRED );
@@ -17,37 +14,47 @@ use HTTP::Response ();
 use HTTP::Date qw(time2str);
 use URI ();
 
-my $HTTP_1_0 = _http_version("HTTP/1.0");
-my $HTTP_1_1 = _http_version("HTTP/1.1");
+use MooseX::ClassAttribute;
 
-#------------------------------------------------------------------------------
+class_has 'HTTP_1_0' => (
+	isa  => 'Str'
+	, is => 'ro',
+	, init_arg => undef
+	, default  => 'HTTP/1.0"'
+);
 
-sub new {
-  my $type = shift;
-  my $self = [
-    '',     # BUFFER
-    0,      # TYPE
-    0,      # FINISH
-    undef,  # HEADER
-    undef,  # CLIENT_PROTO
-  ];
-  bless $self, $type;
-  $self;
-}
+class_has 'HTTP_1_1' => (
+	isa  => 'Str'
+	, is => 'ro',
+	, init_arg => undef
+	, default  => 'HTTP/1.1"'
+);
 
-#------------------------------------------------------------------------------
+has 'finish' => (
+	isa  => 'Bool'
+	, is => 'rw'
+	, default => 0
+);
+
+has 'header' => (
+	isa  => 'ScalarRef'
+	, is => 'ro'
+	, clearer   => 'clear_header'
+	, predicate => 'has_header'
+	, lazy    => 1
+	, default => sub { \my $proto }
+);
+
+has 'proto' => ( isa => 'ScalarRef', is => 'rw', default => sub {\(my $proto)} );
 
 sub get_one_start {
     my ($self, $stream) = @_;
-    return if ( $self->[FINISH] );
+    return if ( $self->finish );
     $stream = [ $stream ] unless ( ref( $stream ) );
-    $self->[BUFFER] .= join( '', @$stream );
+    ${$self->buffer} .= join( '', @$stream );
 }
 
-sub get_one {
-    my ($self) = @_;
-    return ( $self->[FINISH] ) ? [] : $self->get( [] );
-}
+sub get_one {  return $_[0]->finish ? [] : $_[0]->get([])  }
 
 sub get {
   my ($self, $stream) = @_;
@@ -62,8 +69,7 @@ sub get {
   # arrived.  Subsequent get() calls on the same request should not
   # happen.
   # TODO Maybe this should return [] instead of dying?
-
-  if ($self->[FINISH]) {
+  if ($self->finish) {
 
     # This works around a request length vs. actual content length
     # error.  Looks like some browsers (mozilla!) sometimes add on an
@@ -73,7 +79,7 @@ sub get {
 
     my @dump;
     my $offset = 0;
-    $stream = $self->[BUFFER].join("", @$stream);
+    $stream = ${$self->buffer}.join("", @$stream);
     while (length $stream) {
       my $line = substr($stream, 0, 16);
       substr($stream, 0, 16) = '';
@@ -97,15 +103,15 @@ sub get {
 
   # Accumulate data in a framing buffer.
 
-  $self->[BUFFER] .= join('', @$stream);
+  ${$self->buffer} .= join('', @$stream);
 
   # If headers were already received, then the framing buffer is
   # purely content.  Return nothing until content-length bytes are in
   # the buffer, then return the entire request.
 
-  if ($self->[HEADER]) {
-    my $buf = $self->[BUFFER];
-    my $r   = $self->[HEADER];
+  if ($self->has_header) {
+    my $buf = ${$self->buffer};
+    my $r   = ${$self->header};
     my $cl  = $r->content_length() || length($buf) || 0;
 
     # Some browsers (like MSIE 5.01) send extra CRLFs after the
@@ -123,12 +129,12 @@ sub get {
     # PG- CGI.pm only reads Content-Length: bytes from STDIN.
     if (length($buf) >= $cl) {
       $r->content(substr($buf, 0, $cl));
-      $self->[BUFFER] = substr($buf, $cl);
-      $self->[BUFFER] =~ s/^\s+//;
+      ${$self->buffer} = substr($buf, $cl);
+      ${$self->buffer} =~ s/^\s+//;
 
       # We are sending this back, so won't need it anymore.
-      $self->[HEADER] = undef;
-      $self->[FINISH]++;
+      $self->clear_header;
+      $self->finish(1);
       return [$r];
     }
 
@@ -140,14 +146,14 @@ sub get {
   # don't return anything until we've received a blank line.
 
   return [] unless(
-    $self->[BUFFER] =~ /(\x0D\x0A?\x0D\x0A?|\x0A\x0D?\x0A\x0D?)/s
+    ${$self->buffer} =~ /(\x0D\x0A?\x0D\x0A?|\x0A\x0D?\x0A\x0D?)/s
   );
 
   # Copy the buffer for header parsing, and remove the header block
   # from the content buffer.
 
-  my $buf = $self->[BUFFER];
-  $self->[BUFFER] =~ s/.*?(\x0D\x0A?\x0D\x0A?|\x0A\x0D?\x0A\x0D?)//s;
+  my $buf = ${$self->buffer};
+  ${$self->buffer} =~ s/.*?(\x0D\x0A?\x0D\x0A?|\x0A\x0D?\x0A\x0D?)//s;
 
   # Parse the request line.
   if ($buf !~ s/^(\w+)[ \t]+(\S+)(?:[ \t]+(HTTP\/\d+\.\d+))?[^\012]*\012//) {
@@ -165,12 +171,12 @@ sub get {
 
   my $r = HTTP::Request->new($method, URI->new($req_path));
   $r->protocol($proto);
-  $self->[CLIENT_PROTO] = $proto = _http_version($proto);
+  ${$self->proto} = $proto = _http_version($proto);
 
   # Add the raw request's headers to the request object we'll be
   # returning.
 
-  if ($proto >= $HTTP_1_0) {
+  if ($proto >= _http_version($self->HTTP_1_0) ) {
     my ($key,$val);
     HEADER: while ($buf =~ s/^([^\012]*)\012//) {
       $_ = $1;
@@ -189,15 +195,14 @@ sub get {
     $r->push_header($key,$val) if($key);
   }
 
-  $self->[HEADER] = $r;
+  ${$self->header} = $r;
 
-  # If this is a GET or HEAD request, we won't be expecting a message
-  # body.  Finish up.
+  # If this is a GET or HEAD request, we won't be expecting a message body
   $method = uc $r->method();
   if ($method eq 'GET' or $method eq 'HEAD') {
-    $self->[FINISH]++;
+    $self->finish(1);
     # We are sending this back, so won't need it anymore.
-    $self->[HEADER] = undef;
+    $self->clear_header;
     return [$r];
   }
 
@@ -211,7 +216,7 @@ sub get {
 
   my $cl = $r->content_length();
   unless(defined $cl) {
-    if($self->[CLIENT_PROTO] == 9) {
+    if(${$self->proto} == 9) {
       return [
         $self->_build_error(
           RC_BAD_REQUEST,
@@ -222,10 +227,10 @@ sub get {
       ];
     }
     elsif ($method eq 'OPTIONS') {
-      $self->[FINISH]++;
+      $self->finish(1);
       # OPTIONS requests can have an optional content length
       # See http://www.faqs.org/rfcs/rfc2616.html, section 9.2
-      $self->[HEADER] = undef;
+      $self->clear_header;
       return [$r];
     }
     else {
@@ -246,18 +251,16 @@ sub get {
 
   if (length($buf) >= $cl) {
     $r->content(substr($buf, 0, $cl));
-    $self->[BUFFER] = substr($buf, $cl);
-    $self->[BUFFER] =~ s/^\s+//;
-    $self->[FINISH]++;
+    ${$self->buffer} = substr($buf, $cl);
+    ${$self->buffer} =~ s/^\s+//;
+    $self->finish(1);
     # We are sending this back, so won't need it anymore.
-    $self->[HEADER] = undef;
+    $self->clear_header;
     return [$r];
   }
 
   return [];
 }
-
-#------------------------------------------------------------------------------
 
 sub put {
   my ($self, $responses) = @_;
@@ -290,7 +293,7 @@ sub put {
   }
 
   # Allow next request after we're done sending the response.
-  $self->[FINISH]--;
+  $self->finish(0);
 
   \@raw;
 }
