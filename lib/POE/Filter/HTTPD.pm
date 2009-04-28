@@ -363,7 +363,7 @@ sub _build_error {
   );
 }
 
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
