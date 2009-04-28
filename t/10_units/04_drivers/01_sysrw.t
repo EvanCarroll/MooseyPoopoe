@@ -18,8 +18,8 @@ ok(
 
 eval { my $d = POE::Driver::SysRW->new( 0 ) };
 ok(
-  $@ && $@ =~ /requires an even number of parameters/,
-  "disallow zero or negative block sizes"
+  $@ && $@ =~ /an even number of parameters/,
+  'requires an even number of parameters'.$@,
 );
 
 eval { my $d = POE::Driver::SysRW->new( Booga => 1 ) };
