@@ -1,84 +1,88 @@
-# $Id: SysRW.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Copyright 1998 Rocco Caputo <rcaputo@cpan.org>.  All rights
-# reserved.  This program is free software; you can redistribute it
-# and/or modify it under the same terms as Perl itself.
-
 package POE::Driver::SysRW;
+use Moose;
+
+use MooseX::StrictConstructor;
+
+with 'POE::Filter::Roles::ArrayBuffer';
 
 use strict;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
 
 use Errno qw(EAGAIN EWOULDBLOCK);
 use Carp qw(croak);
 
-sub OUTPUT_QUEUE        () { 0 }
-sub CURRENT_OCTETS_DONE () { 1 }
-sub CURRENT_OCTETS_LEFT () { 2 }
-sub BLOCK_SIZE          () { 3 }
-sub TOTAL_OCTETS_LEFT   () { 4 }
+use namespace::clean -except => 'meta';
 
-#------------------------------------------------------------------------------
+use MooseX::AttributeHelpers;
 
-sub new {
-  my $type = shift;
-  my $self = bless [
-    [ ],   # OUTPUT_QUEUE
-    0,     # CURRENT_OCTETS_DONE
-    0,     # CURRENT_OCTETS_LEFT
-    65536, # BLOCK_SIZE
-    0,     # TOTAL_OCTETS_LEFT
-  ], $type;
-
-  if (@_) {
-    if (@_ % 2) {
-      croak "$type requires an even number of parameters, if any";
-    }
-    my %args = @_;
-    if (defined $args{BlockSize}) {
-      $self->[BLOCK_SIZE] = delete $args{BlockSize};
-      croak "$type BlockSize must be greater than 0"
-        if ($self->[BLOCK_SIZE] <= 0);
-    }
-    if (keys %args) {
-      my @bad_args = sort keys %args;
-      croak "$type has unknown parameter(s): @bad_args";
-    }
-  }
-
-  $self;
+foreach (qw/
+	current_octets_done
+	current_octets_left
+	total_octets_left
+/) {
+	has ( $_ => (
+		isa => 'Int'
+		, is => 'rw'
+		, default   => 0
+		, metaclass => 'Counter'
+		, provides  => {
+			inc   => "inc_$_"
+			, dec => "dec_$_"
+		}
+	) );
 }
 
-#------------------------------------------------------------------------------
+has 'block_size' => (
+	isa => 'Int'
+	, is => 'ro'
+	, default => 65536
+	, init_arg => 'BlockSize'
+);
+
+sub BUILDARGS {
+	my $type = shift;
+
+	my $params = {};
+	if ( @_==1 && ref $_[0] eq 'HASH' ) { $params = $_[0] }
+	elsif ( scalar @_ % 2 ) {
+		Carp::croak "$type must be given an even number of parameters";
+	}
+	else {
+		my $params = {@_};
+		Carp::croak "Invalid argument sent to new"
+			if grep $_ ne 'BlockSize', keys %{$params}
+		;
+    Carp::croak "$type BlockSize must be greater than 0"
+			if exists $params->{BlockSize}
+			&& $params->{BlockSize} <= 0
+		;
+	}
+	return $params;
+}
 
 sub put {
   my ($self, $chunks) = @_;
-  my $old_queue_octets = $self->[TOTAL_OCTETS_LEFT];
+  my $old_queue_octets = $self->total_octets_left;
 
   # Need to check lengths in octets, not characters.
   BEGIN { eval { require bytes } and bytes->import; }
 
   foreach (grep { length } @$chunks) {
-    $self->[TOTAL_OCTETS_LEFT] += length;
-    push @{$self->[OUTPUT_QUEUE]}, $_;
+    $self->total_octets_left( $self->total_octets_left + length );
+    push @{$self->buffer}, $_;
   }
 
-  if ($self->[TOTAL_OCTETS_LEFT] && (!$old_queue_octets)) {
-    $self->[CURRENT_OCTETS_LEFT] = length($self->[OUTPUT_QUEUE]->[0]);
-    $self->[CURRENT_OCTETS_DONE] = 0;
+  if ($self->total_octets_left && (!$old_queue_octets)) {
+    $self->current_octets_left( length($self->buffer->[0]) );
+    $self->current_octets_done( 0 );
   }
 
-  $self->[TOTAL_OCTETS_LEFT];
+  $self->total_octets_left;
 }
-
-#------------------------------------------------------------------------------
 
 sub get {
   my ($self, $handle) = @_;
 
-  my $result = sysread($handle, my $buffer = '', $self->[BLOCK_SIZE]);
+  my $result = sysread($handle, my $buffer = '', $self->block_size);
 
   # sysread() returned a positive number of octets.  Return whatever
   # was read.
@@ -120,8 +124,6 @@ sub get {
   undef;
 }
 
-#------------------------------------------------------------------------------
-
 sub flush {
   my ($self, $handle) = @_;
 
@@ -129,12 +131,12 @@ sub flush {
   BEGIN { eval { require bytes } and bytes->import; }
 
   # syswrite() it, like we're supposed to
-  while (@{$self->[OUTPUT_QUEUE]}) {
+  while (@{$self->buffer}) {
     my $wrote_count = syswrite(
       $handle,
-      $self->[OUTPUT_QUEUE]->[0],
-      $self->[CURRENT_OCTETS_LEFT],
-      $self->[CURRENT_OCTETS_DONE],
+      $self->buffer->[0],
+      $self->current_octets_left,
+      $self->current_octets_done,
     );
 
     # Errors only count if syswrite() failed.
@@ -145,30 +147,29 @@ sub flush {
       last;
     }
 
-    $self->[CURRENT_OCTETS_DONE] += $wrote_count;
-    $self->[TOTAL_OCTETS_LEFT] -= $wrote_count;
-    unless ($self->[CURRENT_OCTETS_LEFT] -= $wrote_count) {
-      shift(@{$self->[OUTPUT_QUEUE]});
-      if (@{$self->[OUTPUT_QUEUE]}) {
-        $self->[CURRENT_OCTETS_DONE] = 0;
-        $self->[CURRENT_OCTETS_LEFT] = length($self->[OUTPUT_QUEUE]->[0]);
+    $self->inc_current_octets_done( $wrote_count );
+    $self->dec_total_octets_left( $wrote_count );
+		$self->dec_current_octets_left( $wrote_count );
+	
+    unless ($self->current_octets_left ) {
+      shift(@{$self->buffer});
+      if (@{$self->buffer}) {
+        $self->current_octets_done( 0 );
+        $self->current_octets_left( length $self->buffer->[0] );
       }
       else {
-        $self->[CURRENT_OCTETS_DONE] = $self->[CURRENT_OCTETS_LEFT] = 0;
+        $self->current_octets_done(0);
+				$self->current_octets_left(0);
       }
     }
   }
 
-  $self->[TOTAL_OCTETS_LEFT];
+  $self->total_octets_left;
 }
 
-#------------------------------------------------------------------------------
+sub get_out_messages_buffered { scalar(@{$_[0]->buffer}) }
 
-sub get_out_messages_buffered {
-  scalar(@{$_[0]->[OUTPUT_QUEUE]});
-}
-
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
