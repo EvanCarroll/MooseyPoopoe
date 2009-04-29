@@ -10,9 +10,10 @@ use strict;
 use Errno qw(EAGAIN EWOULDBLOCK);
 use Carp qw(croak);
 
+use POE::Util::Types qw(Natural);
+
 use namespace::clean -except => 'meta';
 
-use MooseX::AttributeHelpers;
 
 foreach (qw/
 	current_octets_done
@@ -32,9 +33,9 @@ foreach (qw/
 }
 
 has 'block_size' => (
-	isa => 'Int'
+	isa  => Natural
 	, is => 'ro'
-	, default => 65536
+	, default  => 65536
 	, init_arg => 'BlockSize'
 );
 
@@ -48,13 +49,6 @@ sub BUILDARGS {
 	}
 	else {
 		my $params = {@_};
-		Carp::croak "Invalid argument sent to new"
-			if grep $_ ne 'BlockSize', keys %{$params}
-		;
-    Carp::croak "$type BlockSize must be greater than 0"
-			if exists $params->{BlockSize}
-			&& $params->{BlockSize} <= 0
-		;
 	}
 	return $params;
 }
