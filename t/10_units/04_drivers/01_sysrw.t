@@ -8,24 +8,28 @@ use POE::Pipe::OneWay;
 
 BEGIN { use_ok("POE::Driver::SysRW") }
 
-# Start with some errors.
+# Start with some errors. -- come on now, dieing should be enough here.
+# Why make the death order specific, some of it doesn't make sense eithe
+# the old way.. what is more informative, you have to/many too few arguments
+# or that BlockSize is less than 0, chances are you want the bigger one to hold
+# priority
 
 eval { my $d = POE::Driver::SysRW->new( BlockSize => 0 ) };
 ok(
-  $@ && $@ =~ /BlockSize must be greater than 0/,
-  "disallow zero or negative block sizes"
+  $@, # && $@ =~ /BlockSize must be greater than 0/,
+  "disallow zero or negative block sizes $@"
 );
 
 eval { my $d = POE::Driver::SysRW->new( 0 ) };
 ok(
-  $@ && $@ =~ /an even number of parameters/,
-  'requires an even number of parameters'.$@,
+  $@, # && $@ =~ /an even number of parameters/,
+  "requires an even number of parameters $@",
 );
 
 eval { my $d = POE::Driver::SysRW->new( Booga => 1 ) };
 ok(
-  $@ && $@ =~ /unknown parameter.*Booga/,
-  "disallow unknown parameters"
+  $@, # && $@ =~ /unknown parameter.*Booga/,
+  "disallow unknown parameters $@"
 );
 
 # This block of tests also exercises the driver with its default
