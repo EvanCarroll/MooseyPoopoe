@@ -6,7 +6,7 @@ use Moose::Role;
 use namespace::clean -except => 'meta';
 
 has 'buffer' => (
-	isa => 'ArrayRef'
+	isa  => 'ArrayRef'
 	, is => 'ro'
 	, default => sub { +[] }
 );
