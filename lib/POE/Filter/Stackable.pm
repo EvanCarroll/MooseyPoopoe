@@ -10,6 +10,8 @@ use MooseX::Clone;
 
 with 'POE::Filter';
 
+use POE::Util qw(BUILDARGS);
+
 use namespace::clean -except => 'meta';
 
 has 'filters' => (
@@ -104,19 +106,6 @@ sub pop {
 	my $pending = $filter->get_pending;
 	$self->get_filters(-1)->put( $pending ) if $pending;
 	$filter;
-}
-
-sub BUILDARGS {
-	my ( $type, @args ) = @_;
-	if ( @args == 1 && ref $args[0] eq 'HASH' ) {
-		return $args[0];
-	}
-	elsif ( @args % 2 ) {
-		Carp::croak "$type must be given an even number of parameters";
-	}
-	else {
-		return +{ @args };
-	}
 }
 
 __PACKAGE__->meta->make_immutable;

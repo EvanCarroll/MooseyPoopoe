@@ -10,10 +10,9 @@ use strict;
 use Errno qw(EAGAIN EWOULDBLOCK);
 use Carp qw(croak);
 
-use POE::Util::Types qw(Natural);
+use POE::Util::Types qw(BUILDARGS Natural);
 
 use namespace::clean -except => 'meta';
-
 
 foreach (qw/
 	current_octets_done
@@ -38,20 +37,6 @@ has 'block_size' => (
 	, default  => 65536
 	, init_arg => 'BlockSize'
 );
-
-sub BUILDARGS {
-	my $type = shift;
-
-	my $params = {};
-	if ( @_==1 && ref $_[0] eq 'HASH' ) { $params = $_[0] }
-	elsif ( scalar @_ % 2 ) {
-		Carp::croak "$type must be given an even number of parameters";
-	}
-	else {
-		my $params = {@_};
-	}
-	return $params;
-}
 
 sub put {
   my ($self, $chunks) = @_;

@@ -15,6 +15,8 @@ subtype 'LengthCodec'
 	=> where { scalar @$_ == 2 }
 ;
 
+use POE::Util qw(BUILDARGS);
+
 use namespace::clean -except => 'meta';
 
 has 'length_codec' => (
@@ -147,13 +149,6 @@ sub put {
 	}
 
 	\@raw;
-}
-
-sub BUILDARGS {
-	my $type = shift;
-	Carp::croak "$type : Must be given an even number of parameters" if @_ & 1;
-	my %params = @_;
-	\%params;
 }
 
 __PACKAGE__->meta->make_immutable;

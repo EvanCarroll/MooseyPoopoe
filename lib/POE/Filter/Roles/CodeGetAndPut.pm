@@ -53,4 +53,17 @@ sub modify {
 	}
 }
 
+sub BUILDARGS {
+	my $type = shift;
+	Carp::croak "$type must be given an even number of parameters" if @_ & 1;
+	my %params = @_;
+
+	Carp::croak "$type requires a Code or both Get and Put parameters"
+		unless defined($params{Code})
+		or defined($params{Get}) && defined($params{Put})
+	;
+
+	\%params;
+}
+
 1;
