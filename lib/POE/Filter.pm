@@ -1,6 +1,5 @@
 package POE::Filter;
 
-use Moose::Util::TypeConstraints;
 use Moose::Role;
 use strict;
 
@@ -8,6 +7,7 @@ with qw(MooseX::Clone);
 
 use Carp qw(croak);
 
+use Moose::Util::TypeConstraints;
 subtype 'Natural'
 	=> as 'Int'
 	=> where { int($_) > 0 }
