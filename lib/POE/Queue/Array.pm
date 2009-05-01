@@ -1,13 +1,11 @@
-# $Id: Array.pm 2447 2009-02-17 05:04:43Z rcaputo $
-# Copyrights and documentation are at the end.
-
 package POE::Queue::Array;
-
 use strict;
+use warnings;
 
-use vars qw(@ISA $VERSION);
-@ISA = qw(POE::Queue);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+use Moose;
+
+with 'POE::Queue';
+
 
 use Errno qw(ESRCH EPERM);
 use Carp qw(confess);
@@ -31,15 +29,31 @@ sub import {
 # Item IDs are unique across all queues.
 
 my $queue_seq = 0;
+use MooseX::ClassAttribute;
+use MooseX::AttributeHelpers;
+
+class_has 'uid' => (
+	isa  => 'Int'
+	, is => 'ro'
+	, default   => 0
+	, metaclass => 'Counter'
+	, provides  => { inc => 'next_uid' }
+);
 my %item_priority;
 
-### A very simple constructor.
-
-sub new {
-  bless [], shift();
-}
-
-### Add an item to the queue.  Returns the new item's ID.
+has 'queue' => (
+	isa => 'ArrayRef'
+	, is => 'ro'
+	, default => sub { +[] }
+	, metaclass => 'Collection::Array'
+	, provides => {
+		'unshift' => '_enqueue_unshift'
+		, 'push'  => '_enqueue_push'
+		, 'shift' => '_dequeue_shift'
+		, 'get'   => '_get_queue'
+		, 'insert'=> '_insert_queue'
+	}
+);
 
 sub enqueue {
   my ($self, $priority, $payload) = @_;
@@ -48,8 +62,7 @@ sub enqueue {
   # you ever run out of integers to store things under.  Map the ID to
   # its due time for search-by-ID functions.
 
-  my $item_id;
-  1 while exists $item_priority{$item_id = ++$queue_seq};
+  my $item_id = $self->next_uid;
   $item_priority{$item_id} = $priority;
 
   my $item_to_enqueue = [
@@ -59,38 +72,29 @@ sub enqueue {
   ];
 
   # Special case: No items in the queue.  The queue IS the item.
-  unless (@$self) {
-    $self->[0] = $item_to_enqueue;
-    DEBUG and warn $self->_dump_splice(0);
-    return $item_id;
+  if (
+		scalar @{$self->queue} == 0
+		or $priority >= $self->_get_queue(-1)->[ITEM_PRIORITY]
+	) {
+    $self->_enqueue_push( $item_to_enqueue );
   }
-
-  # Special case: The new item belongs at the end of the queue.
-  if ($priority >= $self->[-1]->[ITEM_PRIORITY]) {
-    push @$self, $item_to_enqueue;
-    DEBUG and warn $self->_dump_splice(@$self-1);
-    return $item_id;
-  }
-
   # Special case: The new item belongs at the head of the queue.
-  if ($priority < $self->[0]->[ITEM_PRIORITY]) {
-    unshift @$self, $item_to_enqueue;
+  elsif ($priority < $self->_get_queue(0)->[ITEM_PRIORITY]) {
+		$self->_enqueue_unshift( $item_to_enqueue );
     DEBUG and warn $self->_dump_splice(0);
-    return $item_id;
   }
-
   # Special case: There are only two items in the queue.  This item
   # naturally belongs between them.
-  if (@$self == 2) {
-    splice @$self, 1, 0, $item_to_enqueue;
+  elsif (@{$self->queue} == 2) {
+		$self->_insert_queue( 1, $item_to_enqueue );
     DEBUG and warn $self->_dump_splice(1);
-    return $item_id;
   }
-
   # And finally we have a nontrivial queue.  Insert the item using a
   # binary seek.
+	else {
+  	$self->_insert_item(0, $#{$self->queue}, $priority, $item_to_enqueue);
+	}
 
-  $self->_insert_item(0, $#$self, $priority, $item_to_enqueue);
   return $item_id;
 }
 
@@ -101,8 +105,8 @@ sub enqueue {
 sub dequeue_next {
   my $self = shift;
 
-  return unless @$self;
-  my ($priority, $id, $stuff) = @{shift @$self};
+  return unless @{$self->queue};
+  my ($priority, $id, $stuff) = @{$self->_dequeue_shift};
   delete $item_priority{$id};
   return ($priority, $id, $stuff);
 }
@@ -121,15 +125,12 @@ sub dequeue_next {
 sub get_next_priority {
   my $self = shift;
   return undef unless @$self;
-  return $self->[0]->[ITEM_PRIORITY];
+  return $self->_get_queue(0)->[ITEM_PRIORITY];
 }
 
 ### Return the number of items currently in the queue.
 
-sub get_item_count {
-  my $self = shift;
-  return scalar @$self;
-}
+sub get_item_count { my $self = shift; return scalar @{$self->queue} }
 
 ### Internal method to insert an item using a binary seek and splice.
 ### We accept the bounds as parameters because the alarm adjustment
@@ -143,14 +144,14 @@ sub _insert_item {
 
     # Upper and lower bounds crossed.  Insert at the lower point.
     if ($upper < $lower) {
-      splice @$self, $lower, 0, $item;
+      splice @{$self->queue}, $lower, 0, $item;
       DEBUG and warn $self->_dump_splice($lower);
       return;
     }
 
     # We're looking for a priority lower than the one at the midpoint.
     # Set the new upper point to just before the midpoint.
-    if ($priority < $self->[$midpoint]->[ITEM_PRIORITY]) {
+    if ($priority < $self->_get_queue($midpoint)->[ITEM_PRIORITY]) {
       $upper = $midpoint - 1;
       next;
     }
@@ -171,7 +172,7 @@ sub _find_item {
 
   # Use a binary seek.
 
-  my $upper = $#$self; # Last index of @$self.
+  my $upper = $#{$self->queue}; # Last index of @$self.
   my $lower = 0;
   while (1) {
     my $midpoint = ($upper + $lower) >> 1;
@@ -182,7 +183,7 @@ sub _find_item {
 
     # We're looking for a priority lower than the one at the midpoint.
     # Set the new upper point to just before the midpoint.
-    if ($priority < $self->[$midpoint]->[ITEM_PRIORITY]) {
+    if ($priority < $self->_get_queue($midpoint)->[ITEM_PRIORITY]) {
       $upper = $midpoint - 1;
       next;
     }
@@ -196,7 +197,7 @@ sub _find_item {
   # than our target.  Scan backwards until we find the item with the
   # target ID.
   while ($lower-- >= 0) {
-    return $lower if $self->[$lower]->[ITEM_ID] == $id;
+    return $lower if $self->_get_queue($lower)->[ITEM_ID] == $id;
   }
 
   die "should never get here... maybe the queue is out of order";
@@ -220,14 +221,14 @@ sub remove_item {
   my $item_index = $self->_find_item($id, $priority);
 
   # Test the item against the filter.
-  unless ($filter->($self->[$item_index]->[ITEM_PAYLOAD])) {
+  unless ($filter->($self->_get_queue($item_index)->[ITEM_PAYLOAD])) {
     $! = EPERM;
     return;
   }
 
   # Remove the item, and return it.
   delete $item_priority{$id};
-  return @{splice @$self, $item_index, 1};
+  return @{splice @{$self->queue}, $item_index, 1};
 }
 
 ### Remove items matching a filter.  Regrettably, this must scan the
@@ -240,13 +241,13 @@ sub remove_item {
 
 sub remove_items {
   my ($self, $filter, $count) = @_;
-  $count = @$self unless $count;
+  $count = @{$self->queue} unless $count;
 
   my @items;
-  my $i = @$self;
+  my $i = @{$self->queue};
   while ($i--) {
-    if ($filter->($self->[$i]->[ITEM_PAYLOAD])) {
-      my $removed_item = splice(@$self, $i, 1);
+    if ($filter->($self->_get_queue($i)->[ITEM_PAYLOAD])) {
+      my $removed_item = splice(@{$self->queue}, $i, 1);
       delete $item_priority{$removed_item->[ITEM_ID]};
       unshift @items, $removed_item;
       last unless --$count;
@@ -273,7 +274,7 @@ sub adjust_priority {
   my $item_index = $self->_find_item($id, $old_priority);
 
   # Test the item against the filter.
-  unless ($filter->($self->[$item_index]->[ITEM_PAYLOAD])) {
+  unless ($filter->($self->_get_queue($item_index)->[ITEM_PAYLOAD])) {
     $! = EPERM;
     return;
   }
@@ -281,10 +282,10 @@ sub adjust_priority {
   # Nothing to do if the delta is zero.
   # TODO Actually we may need to ensure that the item is moved to the
   # end of its current priority bucket, since it should have "moved".
-  return $self->[$item_index]->[ITEM_PRIORITY] unless $delta;
+  return $self->_get_queue($item_index)->[ITEM_PRIORITY] unless $delta;
 
   # Remove the item, and adjust its priority.
-  my $item = splice(@$self, $item_index, 1);
+  my $item = splice(@{$self->queue}, $item_index, 1);
   my $new_priority = $item->[ITEM_PRIORITY] += $delta;
   $item_priority{$id} = $new_priority;
 
@@ -313,13 +314,13 @@ sub set_priority {
   my $item_index = $self->_find_item($id, $old_priority);
 
   # Test the item against the filter.
-  unless ($filter->($self->[$item_index]->[ITEM_PAYLOAD])) {
+  unless ($filter->($self->_get_queue($item_index)->[ITEM_PAYLOAD])) {
     $! = EPERM;
     return;
   }
 
   # Remove the item, and calculate the delta.
-  my $item = splice(@$self, $item_index, 1);
+  my $item = splice(@{$self->queue}, $item_index, 1);
   my $delta = $new_priority - $old_priority;
   $item->[ITEM_PRIORITY] = $item_priority{$id} = $new_priority;
 
@@ -332,15 +333,15 @@ sub set_priority {
 sub _dump_splice {
   my ($self, $index) = @_;
   my @return;
-  my $at = $self->[$index]->[ITEM_PRIORITY];
+  my $at = $self->_get_queue($index)->[ITEM_PRIORITY];
   if ($index > 0) {
-    my $before = $self->[$index-1]->[ITEM_PRIORITY];
+    my $before = $self->_get_queue($index-1)->[ITEM_PRIORITY];
     push @return, "before($before)";
     confess "out of order: $before should be < $at" if $before > $at;
   }
   push @return, "at($at)";
   if ($index < $#$self) {
-    my $after = $self->[$index+1]->[ITEM_PRIORITY];
+    my $after = $self->_get_queue($index+1)->[ITEM_PRIORITY];
     push @return, "after($after)";
     my @priorities = map {$_->[ITEM_PRIORITY]} @$self;
     confess "out of order: $at should be < $after (@priorities)" if (
@@ -363,22 +364,22 @@ sub _reinsert_item {
   # subsequent nontrivial insert if none of the special cases apply.
 
   # Special case: No events in the queue.  The queue IS the item.
-  unless (@$self) {
-    $self->[0] = $item;
+  unless (@{$self->queue}) {
+    $self->_get_queue(0) = $item;
     DEBUG and warn $self->_dump_splice(0);
     return $new_priority;
   }
 
   # Special case: The item belongs at the end of the queue.
-  if ($new_priority >= $self->[-1]->[ITEM_PRIORITY]) {
-    push @$self, $item;
+  if ($new_priority >= $self->_get_queue(-1)->[ITEM_PRIORITY]) {
+    $self->_enqueue_push($item);
     DEBUG and warn $self->_dump_splice(@$self-1);
     return $new_priority;
   }
 
   # Special case: The item belongs at the head of the queue.
-  if ($new_priority < $self->[0]->[ITEM_PRIORITY]) {
-    unshift @$self, $item;
+  if ($new_priority < $self->_get_queue(0)->[ITEM_PRIORITY]) {
+    $self->_enqueue_unshift($item);
     DEBUG and warn $self->_dump_splice(0);
     return $new_priority;
   }
@@ -386,8 +387,8 @@ sub _reinsert_item {
   # Special case: There are only two items in the queue.  This item
   # naturally belongs between them.
 
-  if (@$self == 2) {
-    splice @$self, 1, 0, $item;
+  if (@{$self->queue} == 2) {
+    splice @{$self->queue}, 1, 0, $item;
     DEBUG and warn $self->_dump_splice(1);
     return $new_priority;
   }
@@ -397,7 +398,7 @@ sub _reinsert_item {
 
   my ($upper, $lower);
   if ($delta > 0) {
-    $upper = $#$self; # Last index in @$self.
+    $upper = $#{$self->queue}; # Last index in @$self.
     $lower = $item_index;
   }
   else {
@@ -414,13 +415,13 @@ sub _reinsert_item {
 
 sub peek_items {
   my ($self, $filter, $count) = @_;
-  $count = @$self unless $count;
+  $count = @{$self->queue} unless $count;
 
   my @items;
-  my $i = @$self;
+  my $i = @{$self->queue};
   while ($i--) {
-    if ($filter->($self->[$i]->[ITEM_PAYLOAD])) {
-      unshift @items, $self->[$i];
+    if ($filter->($self->_get_queue($i)->[ITEM_PAYLOAD])) {
+      unshift @items, $self->_get_queue($i);
       last unless --$count;
     }
   }

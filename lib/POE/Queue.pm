@@ -1,16 +1,7 @@
-# $Id: Queue.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
 package POE::Queue;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+use Moose::Role;
 
 use Carp qw(croak);
-
-sub new {
-  my $type = shift;
-  croak "$type is a virtual base class and not meant to be used directly";
-}
 
 1;
 
