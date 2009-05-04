@@ -38,7 +38,15 @@ class_has 'uid' => (
 	, metaclass => 'Counter'
 	, provides  => { inc => 'next_uid' }
 );
-my %item_priority;
+my %item_db;
+
+##my %item_priority;
+
+## class_has 'item_priority' => (
+## 	isa  => 'Int'
+## 	, is => 'ro'
+## 	, default => sub { +{} }
+## );
 
 has 'queue' => (
 	isa => 'ArrayRef'
@@ -62,13 +70,13 @@ sub enqueue {
 	# its due time for search-by-ID functions.
 
 	my $item_id = $self->next_uid;
-	$item_priority{$item_id} = $priority;
 
 	my $item_to_enqueue = [
 		$priority, # ITEM_PRIORITY
 		$item_id,  # ITEM_ID
 		$payload,  # ITEM_PAYLOAD
 	];
+	$item_db{$item_id} = $item_to_enqueue;
 
 	# Special case: No items in the queue.  The queue IS the item.
 	if (
@@ -106,7 +114,7 @@ sub dequeue_next {
 	return unless @{$self->queue};
 	
 	my ($priority, $id, $stuff) = @{$self->_dequeue_shift};
-	delete $item_priority{$id};
+	delete $item_db{$id};
 	return ($priority, $id, $stuff);
 }
 
@@ -210,7 +218,7 @@ sub _find_item {
 sub remove_item {
 	my ($self, $id, $filter) = @_;
 
-	my $priority = $item_priority{$id};
+	my $priority = $item_db{$id}->[ITEM_PRIORITY];
 	unless (defined $priority) {
 	$! = ESRCH;
 	return;
@@ -226,7 +234,7 @@ sub remove_item {
 	}
 
 	# Remove the item, and return it.
-	delete $item_priority{$id};
+	delete $item_db{$id};
 	return @{splice @{$self->queue}, $item_index, 1};
 }
 
@@ -247,7 +255,7 @@ sub remove_items {
 	while ($i--) {
 		if ($filter->($self->_get_queue($i)->[ITEM_PAYLOAD])) {
 			my $removed_item = splice(@{$self->queue}, $i, 1);
-			delete $item_priority{$removed_item->[ITEM_ID]};
+			delete $item_db{$removed_item->[ITEM_ID]};
 			unshift @items, $removed_item;
 			last unless --$count;
 		}
@@ -263,7 +271,7 @@ sub remove_items {
 sub adjust_priority {
 	my ($self, $id, $filter, $delta) = @_;
 
-	my $old_priority = $item_priority{$id};
+	my $old_priority = $item_db{$id}->[ITEM_PRIORITY];
 	unless (defined $old_priority) {
 		$! = ESRCH;
 		return;
@@ -286,7 +294,7 @@ sub adjust_priority {
 	# Remove the item, and adjust its priority.
 	my $item = splice(@{$self->queue}, $item_index, 1);
 	my $new_priority = $item->[ITEM_PRIORITY] += $delta;
-	$item_priority{$id} = $new_priority;
+	$item_db{$id}->[ITEM_PRIORITY] = $new_priority;
 
 	$self->_reinsert_item($new_priority, $delta, $item_index, $item);
 }
@@ -298,7 +306,7 @@ sub adjust_priority {
 sub set_priority {
 	my ($self, $id, $filter, $new_priority) = @_;
 
-	my $old_priority = $item_priority{$id};
+	my $old_priority = $item_db{$id}->[ITEM_PRIORITY];
 	unless (defined $old_priority) {
 		$! = ESRCH;
 		return;
@@ -321,7 +329,7 @@ sub set_priority {
 	# Remove the item, and calculate the delta.
 	my $item = splice(@{$self->queue}, $item_index, 1);
 	my $delta = $new_priority - $old_priority;
-	$item->[ITEM_PRIORITY] = $item_priority{$id} = $new_priority;
+	$item->[ITEM_PRIORITY] = $item_db{$id}->[ITEM_PRIORITY] = $new_priority;
 
 	$self->_reinsert_item($new_priority, $delta, $item_index, $item);
 }
