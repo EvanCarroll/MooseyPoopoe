@@ -103,8 +103,8 @@ sub enqueue {
 
 sub dequeue_next {
 	my $self = shift;
-
 	return unless @{$self->queue};
+	
 	my ($priority, $id, $stuff) = @{$self->_dequeue_shift};
 	delete $item_priority{$id};
 	return ($priority, $id, $stuff);
@@ -420,13 +420,13 @@ sub peek_items {
 	my @items;
 	my $i = @{$self->queue};
 	while ($i--) {
-	if ($filter->($self->_get_queue($i)->[ITEM_PAYLOAD])) {
-		unshift @items, $self->_get_queue($i);
-		last unless --$count;
+		if ($filter->($self->_get_queue($i)->[ITEM_PAYLOAD])) {
+			unshift @items, $self->_get_queue($i);
+			last unless --$count;
+		}
 	}
-}
 
-return @items;
+	return @items;
 }
 
 1;
