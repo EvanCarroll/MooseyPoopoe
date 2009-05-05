@@ -26,25 +26,10 @@ ok($q->enqueue(1, "one") == 1, "first enqueue has id 1");
 ok($q->enqueue(3, "tre") == 2, "second enqueue has id 2");
 ok($q->enqueue(2, "two") == 3, "third enqueue has id 3");
 
-ok(
-  eq_array( [$q->dequeue_next()], [1, 1, "one"] ),
-  "event one dequeued correctly"
-);
-
-ok(
-  eq_array( [$q->dequeue_next()], [2, 3, "two"] ),
-  "event two dequeued correctly"
-);
-
-ok(
-  eq_array( [$q->dequeue_next()], [3, 2, "tre"] ),
-  "event three dequeued correctly"
-);
-
-ok(
-  eq_array( [$q->dequeue_next()], [] ),
-  "empty queue marker dequeued correctly"
-);
+is_deeply( [$q->dequeue_next()], [1, 1, "one"], "event one dequeued correctly" );
+is_deeply( [$q->dequeue_next()], [2, 3, "two"], "event two dequeued correctly" );
+is_deeply( [$q->dequeue_next()], [3, 2, "tre"], "event three dequeued correctly" );
+is_deeply( [$q->dequeue_next()], [], "empty queue marker dequeued correctly" );
 
 { my @events = (
     [ a => 1 ],
@@ -62,20 +47,9 @@ ok(
 sub always_ok { 1 }
 sub never_ok  { 0 }
 
-ok(
-  eq_array( [$q->remove_item(7, \&always_ok)], [2, 7, "b"] ),
-  "removed event b by its ID"
-);
-
-ok(
-  eq_array( [$q->remove_item(5, \&always_ok)], [3, 5, "c"] ),
-  "removed event c by its ID"
-);
-
-ok(
-  eq_array( [$q->remove_item(8, \&always_ok)], [4, 8, "d"] ),
-  "removed event d by its ID"
-);
+is_deeply( [$q->remove_item(7, \&always_ok)], [2, 7, "b"], "removed event b by its ID" );
+is_deeply( [$q->remove_item(5, \&always_ok)], [3, 5, "c"], "removed event c by its ID" );
+is_deeply( [$q->remove_item(8, \&always_ok)], [4, 8, "d"], "removed event d by its ID" );
 
 $! = 0;
 ok(
@@ -93,20 +67,9 @@ ok(
   "couldn't remove nonexistent event d"
 );
 
-ok(
-  eq_array( [$q->dequeue_next()], [1, 4, "a"] ),
-  "dequeued event a correctly"
-);
-
-ok(
-  eq_array( [$q->dequeue_next()], [5, 6, "e"] ),
-  "dequeued event e correctly"
-);
-
-ok(
-  eq_array( [$q->dequeue_next()], [] ),
-  "empty queue marker dequeued correctly"
-);
+is_deeply( [$q->dequeue_next()], [1, 4, "a"], "dequeued event a correctly" );
+is_deeply( [$q->dequeue_next()], [5, 6, "e"], "dequeued event e correctly" );
+is_deeply( [$q->dequeue_next()], [], "empty queue marker dequeued correctly" );
 
 { my @events = (
     [ a => 1 ],
@@ -133,14 +96,14 @@ sub even_letters { $_[0] =~ /[bdf]/ }
     [ 5, 11, "e" ],
   );
 
-  ok(eq_array(\@items, \@target), "removed odd letters from queue");
+  is_deeply(\@items, \@target, "removed odd letters from queue");
   is($q->get_item_count(), 3, "leaving three events");
 }
 
 { my @items = $q->remove_items(\&odd_letters, 3);
   my @target;
 
-  ok(eq_array(\@items, \@target), "no more odd letters to remove");
+  is_deeply(\@items, \@target, "no more odd letters to remove");
 }
 
 { my @items = $q->remove_items(\&even_letters, 3);
@@ -150,7 +113,7 @@ sub even_letters { $_[0] =~ /[bdf]/ }
     [ 6, 14, "f" ],
   );
 
-  ok(eq_array(\@items, \@target), "removed even letters from queue");
+  is_deeply(\@items, \@target, "removed even letters from queue");
   is($q->get_item_count(), 0, "leaving the queue empty");
 }
 
@@ -176,7 +139,7 @@ is($q->get_item_count(), 6, "leaving six events in the queue");
     [ 60, 20, "f" ],
   );
 
-  ok(eq_array(\@items, \@target), "found even letters in queue");
+  is_deeply(\@items, \@target, "found even letters in queue");
 }
 
 is(
@@ -199,7 +162,7 @@ is(
     [ 60, 20, "f" ],
   );
 
-  ok(eq_array(\@items, \@target), "colliding priorities are FIFO");
+  is_deeply(\@items, \@target, "colliding priorities are FIFO");
 }
 
 is($q->get_item_count(), 0, "full queue removal leaves zero events");
