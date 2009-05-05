@@ -179,13 +179,13 @@ is($q->get_item_count(), 6, "leaving six events in the queue");
   ok(eq_array(\@items, \@target), "found even letters in queue");
 }
 
-ok(
-  $q->adjust_priority(19, \&always_ok, -15) == 35,
+is(
+  $q->adjust_priority(19, \&always_ok, -15), 35,
   "adjusted event e priority by -15"
 );
 
-ok(
-  $q->adjust_priority(16, \&always_ok, +15) == 35,
+is(
+  $q->adjust_priority(16, \&always_ok, +15), 35,
   "adjusted event b priority by +15"
 );
 
@@ -202,7 +202,7 @@ ok(
   ok(eq_array(\@items, \@target), "colliding priorities are FIFO");
 }
 
-ok($q->get_item_count() == 0, "full queue removal leaves zero events");
+is($q->get_item_count(), 0, "full queue removal leaves zero events");
 
 ### Large Queue Tests.  The only functions that use large queues are
 ### enqueue(), adjust_priority(), and set_priority().  Large queues
