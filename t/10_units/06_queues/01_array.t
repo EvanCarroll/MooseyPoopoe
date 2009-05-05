@@ -121,7 +121,7 @@ ok(
   enqueue_events(\@events, $base_event_id);
 }
 
-ok($q->get_item_count() == 6, "queue contains six events");
+is($q->get_item_count(), 6, "queue contains six events");
 
 sub odd_letters  { $_[0] =~ /[ace]/ }
 sub even_letters { $_[0] =~ /[bdf]/ }
@@ -134,7 +134,7 @@ sub even_letters { $_[0] =~ /[bdf]/ }
   );
 
   ok(eq_array(\@items, \@target), "removed odd letters from queue");
-  ok($q->get_item_count() == 3, "leaving three events");
+  is($q->get_item_count(), 3, "leaving three events");
 }
 
 { my @items = $q->remove_items(\&odd_letters, 3);
@@ -151,7 +151,7 @@ sub even_letters { $_[0] =~ /[bdf]/ }
   );
 
   ok(eq_array(\@items, \@target), "removed even letters from queue");
-  ok($q->get_item_count() == 0, "leaving the queue empty");
+  is($q->get_item_count(), 0, "leaving the queue empty");
 }
 
 { my @events = (
@@ -167,7 +167,7 @@ sub even_letters { $_[0] =~ /[bdf]/ }
   enqueue_events(\@events, $base_event_id);
 }
 
-ok($q->get_item_count() == 6, "leaving six events in the queue");
+is($q->get_item_count(), 6, "leaving six events in the queue");
 
 { my @items = $q->peek_items(\&even_letters);
   my @target = (
