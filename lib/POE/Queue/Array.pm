@@ -3,16 +3,17 @@ use strict;
 use warnings;
 
 use Moose;
+use Errno qw(ESRCH EPERM);
 
 with 'POE::Queue';
 
+use constant {
+	ITEM_PRIORITY => 0
+	, ITEM_ID       => 1
+	, ITEM_PAYLOAD  => 2
+};
 
-use Errno qw(ESRCH EPERM);
-use Carp qw(confess);
-
-sub ITEM_PRIORITY () { 0 }
-sub ITEM_ID       () { 1 }
-sub ITEM_PAYLOAD  () { 2 }
+use namespace::clean -except => 'meta';
 
 sub import {
 	my $package = caller();
@@ -114,22 +115,6 @@ sub get_next_priority {
 ### Return the number of items currently in the queue.
 
 sub get_item_count { my $self = shift; return scalar keys %db_id }
-
-### Internal method to insert an item using a binary seek and splice.
-### We accept the bounds as parameters because the alarm adjustment
-### functions may also use it.
-
-sub _insert_item {
-	my ($self, $lower, $upper, $priority, $item_to_enqueue) = @_;
-
-	my $item_id = $item_to_enqueue->[ITEM_ID];
-	
-	$db_id{$item_id} = $item_to_enqueue;
-	
-	push @{$db_priority{$priority}}, $item_to_enqueue;
-	Scalar::Util::weaken( $db_priority{$priority}[-1] );
-
-}
 
 ### Internal method to find a queue item by its priority and ID.  We
 ### assume the priority and ID have been verified already, so the item
@@ -264,7 +249,7 @@ sub _dump_splice {
 	if ($index > 0) {
 		my $before = $self->_get_queue($index-1)->[ITEM_PRIORITY];
 		push @return, "before($before)";
-		confess "out of order: $before should be < $at" if $before > $at;
+		Carp::confess "out of order: $before should be < $at" if $before > $at;
 	}
 	push @return, "at($at)";
 	if ($index < $#$self) {
@@ -272,7 +257,7 @@ sub _dump_splice {
 		push @return, "after($after)";
 		my @priorities = map {$_->[ITEM_PRIORITY]} @$self;
 	
-		confess "out of order: $at should be < $after (@priorities)"
+		Carp::confess "out of order: $at should be < $after (@priorities)"
 			if $at >= $after
 		;
 	}
