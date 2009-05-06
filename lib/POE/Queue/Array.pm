@@ -3,7 +3,10 @@ use strict;
 use warnings;
 
 use Moose;
+use MooseX::AttributeHelpers;
 use Errno qw(ESRCH EPERM);
+use List::Util ();
+use Scalar::Util ();
 
 with 'POE::Queue';
 
@@ -23,15 +26,9 @@ sub import {
 	*{ $package . '::ITEM_PAYLOAD'  } = \&ITEM_PAYLOAD;
 }
 
-# Item IDs are unique across all queues.
-
-my $queue_seq = 0;
+my %db_id;
+my %db_priority;
 use MooseX::ClassAttribute;
-use MooseX::AttributeHelpers;
-
-## class_has 'debug' => ( isa => 'Bool', is => 'ro', default => 0 );
-use constant { DEBUG => 0 };
-
 class_has 'uid' => (
 	isa  => 'Int'
 	, is => 'ro'
@@ -39,11 +36,20 @@ class_has 'uid' => (
 	, metaclass => 'Counter'
 	, provides  => { inc => 'next_uid' }
 );
-use List::Util;
-my %db_id;
-my %db_priority;
 
-use Scalar::Util qw();
+### Return the next item's priority, undef if the queue is empty.
+has '_min_priority' => (
+	isa  => 'Maybe[Int]'
+	, is => 'ro'
+	, lazy    => 1
+	, reader => 'get_next_priority'
+	, default => sub {
+		List::Util::min( keys %db_priority ) || undef
+	}
+	, clearer => '_reset_min_priority'
+);
+
+
 
 sub enqueue {
 	my ($self, $priority, $payload) = @_;
@@ -80,7 +86,7 @@ sub dequeue_next {
 	my $item;
 	PRIORITY: while (1) {
 
-		my $priority = List::Util::min( keys %db_priority );
+		my $priority = $self->get_next_priority;
 		return () unless defined $priority;
 
 		while (1) {
@@ -97,39 +103,19 @@ sub dequeue_next {
 		}
 
 		## Clear priority table if there are no more items of the same priority
-		delete $db_priority{$priority} unless @{ $db_priority{$priority} };
+		unless ( @{$db_priority{$priority}} ) {
+			delete $db_priority{$priority} unless @{ $db_priority{$priority} };
+			$self->_reset_min_priority;
+		}
+
 	}
 
 	@{ delete $db_id{ $item->[ITEM_ID]} };
 }
 
-### Return the next item's priority, undef if the queue is empty.
-
-# return (shift->[0] || return undef)->[ITEM_PRIORITY];
-sub get_next_priority {
-	my $self = shift;
-	return unless keys %db_id;
-	return List::Util::min( keys %db_priority );
-}
 
 ### Return the number of items currently in the queue.
-
 sub get_item_count { my $self = shift; return scalar keys %db_id }
-
-### Internal method to find a queue item by its priority and ID.  We
-### assume the priority and ID have been verified already, so the item
-### must exist.  Returns the index of the item that matches the
-### priority/ID pair.
-
-sub _find_item {
-	my ($self, $id, $priority) = @_;
-
-	defined $id
-		? return $db_id{$id}
-		:	die "should never get here... maybe the queue is out of order"
-	;
-
-}
 
 ### Remove an item by its ID.  Takes a coderef filter, too, for
 ### examining the payload to be sure it really wants to leave.  Sets
@@ -153,9 +139,11 @@ sub remove_item {
 	}
 
 	## Clear priority table if there are no more items of the same priority
-	delete $db_priority{ $item->[ITEM_PRIORITY] }
-		if @{ $db_priority{ $item->[ITEM_PRIORITY] } } == 1
-	;
+	if ( @{ $db_priority{$item->[ITEM_PRIORITY]} } == 1 ) {
+		delete $db_priority{ $item->[ITEM_PRIORITY] };
+		$self->_reset_min_priority;
+	}
+
 	@{  delete $db_id{ $item->[ITEM_ID] }  };
 
 }
@@ -175,10 +163,13 @@ sub remove_items {
 
 	foreach my $item ( @items ) {
 
-		delete $db_priority{ $item->[ITEM_PRIORITY] }
-			if @{ $db_priority{ $item->[ITEM_PRIORITY] } } == 1
-		;
 		delete $db_id{ $item->[ITEM_ID] };
+		
+		unless ( @{ $db_priority{$item->[ITEM_PRIORITY]} } ) {
+			delete $db_priority{ $item->[ITEM_PRIORITY] };
+			$self->_reset_min_priority;
+		}
+
 	}
 	
 	return @items;
@@ -220,9 +211,10 @@ sub set_priority {
 	# end of its current priority bucket, since it should have "moved".
 	return $new_priority if $new_priority == $old_priority;
 
-	delete $db_priority{ $item->[ITEM_PRIORITY] }
-		if @{ $db_priority{ $item->[ITEM_PRIORITY] } } == 1
-	;
+	if ( @{ $db_priority{$item->[ITEM_PRIORITY]} } == 1 ) {
+		delete $db_priority{ $item->[ITEM_PRIORITY] };
+		$self->_reset_min_priority;
+	}
 
 	# set the items priority to the new priority
 	$item->[ITEM_PRIORITY] = $new_priority;
@@ -289,7 +281,7 @@ sub peek_items {
 	return @items;
 }
 
-1;
+__PACKAGE__->meta->make_immutable;
 
 __END__
 
