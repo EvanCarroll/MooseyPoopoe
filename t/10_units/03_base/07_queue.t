@@ -7,9 +7,5 @@ use Test::More tests => 2;
 BEGIN { use_ok("POE::Queue") }
 
 eval { my $x = POE::Queue->new() };
-ok(
-  $@ && $@ =~ /not meant to be used directly/,
-  "don't instantiate POE::Queue"
-);
+ok( $@, "don't instantiate POE::Queue" );
 
-exit 0;

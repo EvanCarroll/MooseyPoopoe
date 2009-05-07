@@ -7,10 +7,7 @@ use Test::More tests => 7;
 BEGIN { use_ok("POE::Wheel") }
 
 eval { my $x = POE::Wheel->new() };
-ok(
-  $@ && $@ =~ /not meant to be used directly/,
-  "don't instantiate POE::Wheel"
-);
+ok( $@, "don't instantiate POE::Wheel" );
 
 my $id = POE::Wheel::allocate_wheel_id();
 ok($id == 1, "first wheel ID == 1");
