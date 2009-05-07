@@ -832,22 +832,7 @@ sub new {
       \$kr_active_event,   # KR_ACTIVE_EVENT
     ], $type;
 
-    $self->_data_sid_set($self->ID(), $self);
-    
-		# Initialize subsystems.  The order is important.
-
-    # We need events before sessions, and the kernel's session before
-    # it can start polling for signals.  Statistics gathering requires
-    # a polling event as well, so it goes late.
-    $self->_data_ev_initialize($kr_queue);
-    $self->_initialize_kernel_session();
-    $self->_data_stat_initialize() if TRACE_STATISTICS;
-    $self->_data_sig_initialize();
-    $self->_data_alias_initialize();
-
-    # These other subsystems don't have strange interactions.
-    $self->_data_handle_initialize($kr_queue);
-
+		$self->BUILD;
 
 	}
   
