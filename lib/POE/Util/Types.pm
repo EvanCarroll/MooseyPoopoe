@@ -7,3 +7,5 @@ subtype Natural
 	, as 'Int'
 	, where { int($_) > 0 }
 ;
+
+1;
