@@ -32,24 +32,6 @@ sub get {
   return \@return;
 }
 
-## sub clone {
-##   my $self = shift;
-## 
-##   my $nself;
-## 	if ( ref $self eq 'ARRAY' ) {
-##   	my $buf = (ref($self->[0]) eq 'ARRAY') ? [ ] : '';
-## 		bless [
-## 	    $buf,                # BUFFER
-## 	    @$self[1..$#$self],  # everything else
-## 		], ref $self;
-## 	}
-## 	else {
-## 		return bless { %$self }, ref $self;
-## 	}
-## 
-##   return $nself;
-## }
-
 1;
 
 __END__
