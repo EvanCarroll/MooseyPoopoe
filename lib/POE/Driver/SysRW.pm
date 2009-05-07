@@ -10,9 +10,12 @@ use strict;
 use Errno qw(EAGAIN EWOULDBLOCK);
 use Carp qw(croak);
 
-use POE::Util::Types qw(BUILDARGS Natural);
+use POE::Util::Types qw(Natural);
+use POE::Util qw(BUILDARGS);
 
 use namespace::clean -except => 'meta';
+
+use MooseX::AttributeHelpers;
 
 foreach (qw/
 	current_octets_done
