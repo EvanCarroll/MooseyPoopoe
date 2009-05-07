@@ -5,6 +5,16 @@ use strict;
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
 
+
+# Argument offsets for different types of internally generated events.
+# TODO Exporting (EXPORT_OK) these would let people stop depending on
+# positions for them.
+use constant {
+	EA_SEL_HANDLE => 0
+	, EA_SEL_MODE   => 1
+	, EA_SEL_ARGS   => 2
+};
+
 ### Some portability things.
 
 # Provide dummy constants so things at least compile.  These constants
@@ -243,9 +253,9 @@ sub _data_handle_enqueue_ready {
       $self->_data_ev_enqueue(
         $select->[HSS_SESSION], $select->[HSS_SESSION],
         $select->[HSS_STATE], POE::Kernel::ET_SELECT,
-        [ $select->[HSS_HANDLE],  # POE::Kernel::EA_SEL_HANDLE
-          $mode,                  # POE::Kernel::EA_SEL_MODE
-          @{$select->[HSS_ARGS]}, # POE::Kernel::EA_SEL_ARGS
+        [ $select->[HSS_HANDLE],  # EA_SEL_HANDLE
+          $mode,                  # EA_SEL_MODE
+          @{$select->[HSS_ARGS]}, # EA_SEL_ARGS
         ],
         __FILE__, __LINE__, undef, time(),
       );
@@ -542,8 +552,8 @@ sub _data_handle_remove {
         return 0 unless $_[0]->[POE::Kernel::EV_TYPE]    &  POE::Kernel::ET_SELECT;
         return 0 unless $_[0]->[POE::Kernel::EV_SESSION] == $kill_session;
         return 0 unless $_[0]->[POE::Kernel::EV_NAME]    eq $kill_event;
-        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[POE::Kernel::EA_SEL_HANDLE] == $handle;
-        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[POE::Kernel::EA_SEL_MODE]   == $mode;
+        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[EA_SEL_HANDLE] == $handle;
+        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[EA_SEL_MODE]   == $mode;
         return 1;
       };
 

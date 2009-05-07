@@ -265,14 +265,6 @@ sub CHILD_GAIN   () { 'gain'   }  # The session was inherited from another.
 sub CHILD_LOSE   () { 'lose'   }  # The session is no longer this one's child.
 sub CHILD_CREATE () { 'create' }  # The session was created as a child of this.
 
-# Argument offsets for different types of internally generated events.
-# TODO Exporting (EXPORT_OK) these would let people stop depending on
-# positions for them.
-
-sub EA_SEL_HANDLE () { 0 }
-sub EA_SEL_MODE   () { 1 }
-sub EA_SEL_ARGS   () { 2 }
-
 #------------------------------------------------------------------------------
 # Debugging and configuration constants.
 
