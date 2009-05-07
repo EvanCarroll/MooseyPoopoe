@@ -30,8 +30,8 @@ sub _loop_signal_handler_generic {
     POE::Kernel::_warn "<sg> Enqueuing generic SIG$_[0] event";
   }
 
-  $poe_kernel->_data_ev_enqueue(
-    $poe_kernel, $poe_kernel, EN_SIGNAL, ET_SIGNAL, [ $_[0] ],
+  $POE::Kernel::poe_kernel->_data_ev_enqueue(
+    $POE::Kernel::poe_kernel, $POE::Kernel::poe_kernel, EN_SIGNAL, ET_SIGNAL, [ $_[0] ],
     __FILE__, __LINE__, undef, time()
   );
   $SIG{$_[0]} = \&_loop_signal_handler_generic;
@@ -42,8 +42,8 @@ sub _loop_signal_handler_pipe {
     POE::Kernel::_warn "<sg> Enqueuing PIPE-like SIG$_[0] event";
   }
 
-  $poe_kernel->_data_ev_enqueue(
-    $poe_kernel, $poe_kernel, EN_SIGNAL, ET_SIGNAL, [ $_[0] ],
+  $POE::Kernel::poe_kernel->_data_ev_enqueue(
+    $POE::Kernel::poe_kernel, $POE::Kernel::poe_kernel, EN_SIGNAL, ET_SIGNAL, [ $_[0] ],
     __FILE__, __LINE__, undef, time()
   );
   $SIG{$_[0]} = \&_loop_signal_handler_pipe;
@@ -55,7 +55,7 @@ sub _loop_signal_handler_chld {
     POE::Kernel::_warn "<sg> Enqueuing CHLD-like SIG$_[0] event";
   }
 
-  $poe_kernel->_data_sig_enqueue_poll_event();
+  $POE::Kernel::poe_kernel->_data_sig_enqueue_poll_event();
   $SIG{$_[0]} = \&_loop_signal_handler_chld;
 }
 

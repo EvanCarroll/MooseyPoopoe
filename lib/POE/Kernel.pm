@@ -1,11 +1,9 @@
-## $Id: Kernel.pm 2501 2009-03-11 02:28:50Z rcaputo $
-
 package POE::Kernel;
 
-use strict;
+use Moose;
+use XXX;
 
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2501 $=~/(\d+)/);sprintf"1.%04d",$r};
+use strict;
 
 use POSIX qw(uname);
 use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
@@ -13,10 +11,22 @@ use Carp qw(carp croak confess cluck);
 use Sys::Hostname qw(hostname);
 use IO::Handle ();
 use File::Spec ();
+		
+
+with 'POE::Resource::Aliases';
+with 'POE::Resource::Events';
+with 'POE::Resource::Extrefs';
+with 'POE::Resource::FileHandles';
+with 'POE::Resource::SIDs';
+with 'POE::Resource::Sessions';
+with 'POE::Resource::Signals';
+with 'POE::Resource::Statistics';
+
 
 # People expect these to be lexical.
 
-use vars qw($poe_kernel $poe_main_window);
+our ($poe_kernel, $poe_main_window);
+$poe_kernel= undef;
 
 #------------------------------------------------------------------------------
 # A cheezy exporter to avoid using Exporter.
@@ -582,7 +592,6 @@ sub _test_loop {
 # Include resource modules here.  Later, when we have the option of XS
 # versions, we'll adapt this to include them if they're available.
 
-use POE::Resources;
 
 ###############################################################################
 # Helpers.
@@ -797,7 +806,7 @@ sub new {
   # single entry point into the entirety of POE's state: point a
   # Dumper module at it, and you'll see a hideous tree of knowledge.
   # Be careful, though.  Its apples bite back.
-  unless (defined $poe_kernel) {
+  unless (defined $POE::Kernel::poe_kernel) {
 
     # Create our master queue.
     $kr_queue = $queue_class->new();
@@ -807,7 +816,7 @@ sub new {
     # TODO - Should the subsystems be split off into separate real
     # objects, such as KR_QUEUE is?
 
-    my $self = $poe_kernel = bless [
+    my $self = $POE::Kernel::poe_kernel = bless [
       undef,               # KR_SESSIONS - from POE::Resource::Sessions
       undef,               # KR_FILENOS - from POE::Resource::FileHandles
       undef,               # KR_SIGNALS - from POE::Resource::Signals
@@ -823,11 +832,9 @@ sub new {
       \$kr_active_event,   # KR_ACTIVE_EVENT
     ], $type;
 
-    POE::Resources->load();
-
     $self->_data_sid_set($self->ID(), $self);
-
-    # Initialize subsystems.  The order is important.
+    
+		# Initialize subsystems.  The order is important.
 
     # We need events before sessions, and the kernel's session before
     # it can start polling for signals.  Statistics gathering requires
@@ -840,11 +847,32 @@ sub new {
 
     # These other subsystems don't have strange interactions.
     $self->_data_handle_initialize($kr_queue);
-  }
 
-  # Return the global instance.
+
+	}
+  
+	# Return the global instance.
   $poe_kernel;
 }
+
+sub BUILD {
+	my $self = shift;
+    $self->_data_sid_set($self->ID(), $self);
+    
+		# Initialize subsystems.  The order is important.
+
+    # We need events before sessions, and the kernel's session before
+    # it can start polling for signals.  Statistics gathering requires
+    # a polling event as well, so it goes late.
+    $self->_data_ev_initialize($kr_queue);
+    $self->_initialize_kernel_session();
+    $self->_data_stat_initialize() if TRACE_STATISTICS;
+    $self->_data_sig_initialize();
+    $self->_data_alias_initialize();
+
+    # These other subsystems don't have strange interactions.
+    $self->_data_handle_initialize($kr_queue);
+};
 
 #------------------------------------------------------------------------------
 # Send an event to a session right now.  Used by _disp_select to
@@ -1269,8 +1297,10 @@ sub run_one_timeslice {
 
 sub run {
   # So run() can be called as a class method.
-  POE::Kernel->new unless defined $poe_kernel;
-  my $self = $poe_kernel;
+  my $self = defined $POE::Kernel::poe_kernel
+		? $POE::Kernel::poe_kernel
+		: __PACKAGE__->new
+	;
 
   # Flag that run() was called.
   $kr_run_warning |= KR_RUN_CALLED;
@@ -1306,7 +1336,7 @@ sub run {
 
 sub stop {
   # So stop() can be called as a class method.
-  my $self = $poe_kernel;
+  my $self = $POE::Kernel::poe_kernel;
 
   my @children = ($self);
   foreach my $session (@children) {

@@ -1,24 +1,14 @@
-# $Id: FileHandles.pm 2485 2009-03-01 21:28:22Z rcaputo $
-
-# Manage file handles, associated descriptors, and read/write modes
-# thereon.
-
 package POE::Resource::FileHandles;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2485 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# These methods are folded into POE::Kernel;
-package POE::Kernel;
-
+use Moose::Role;
 use strict;
 
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
+use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
 
 ### Some portability things.
 
 # Provide dummy constants so things at least compile.  These constants
-# aren't used if we're RUNNING_IN_HELL, but Perl needs to see them.
+# aren't used if we're POE::Kernel::RUNNING_IN_HELL, but Perl needs to see them.
 
 BEGIN {
   # older perls than 5.10 needs a kick in the arse to AUTOLOAD the constant...
@@ -45,9 +35,9 @@ my $kr_queue;
 ### more unique.
 
 my %kr_filenos;
-BEGIN { $poe_kernel->[KR_FILENOS] = \%kr_filenos; }
+BEGIN { $POE::Kernel::poe_kernel->[POE::Kernel::KR_FILENOS] = \%kr_filenos; }
 
-sub FNO_MODE_RD      () { MODE_RD } # [ [ (fileno read mode structure)
+sub FNO_MODE_RD      () { POE::Kernel::MODE_RD } # [ [ (fileno read mode structure)
 # --- BEGIN SUB STRUCT 1 ---        #
 sub FMO_REFCOUNT     () { 0      }  #     $fileno_total_use_count,
 sub FMO_ST_ACTUAL    () { 1      }  #     $requested_file_state (see HS_PAUSED)
@@ -65,10 +55,10 @@ sub HSS_ARGS         () { 3      }  #           \@callback_arguments
 # --- CEASE SUB STRUCT 2 ---        #     },
 # --- CEASE SUB STRUCT 1 ---        #   ],
                                     #
-sub FNO_MODE_WR      () { MODE_WR } #   [ (write mode structure is the same)
+sub FNO_MODE_WR      () { POE::Kernel::MODE_WR } #   [ (write mode structure is the same)
                                     #   ],
                                     #
-sub FNO_MODE_EX      () { MODE_EX } #   [ (expedite mode struct is the same)
+sub FNO_MODE_EX      () { POE::Kernel::MODE_EX } #   [ (expedite mode struct is the same)
                                     #   ],
                                     #
 sub FNO_TOT_REFCOUNT () { 3      }  #   $total_number_of_file_watchers,
@@ -114,17 +104,17 @@ sub _data_handle_finalize {
     my ($rd, $wr, $ex, $tot) = @$fd_rec;
     $finalized_ok = 0;
 
-    _warn "!!! Leaked fileno: $fd (total refcnt=$tot)\n";
+    POE::Kernel::_warn "!!! Leaked fileno: $fd (total refcnt=$tot)\n";
 
-    _warn(
+    POE::Kernel::_warn(
       "!!!\tRead:\n",
       "!!!\t\trefcnt  = $rd->[FMO_REFCOUNT]\n",
       "!!!\t\tev cnt  = $rd->[FMO_EV_COUNT]\n",
     );
     while (my ($ses, $ses_rec) = each(%{$rd->[FMO_SESSIONS]})) {
-      _warn "!!!\t\tsession = $ses\n";
+      POE::Kernel::_warn "!!!\t\tsession = $ses\n";
       while (my ($handle, $hnd_rec) = each(%{$ses_rec})) {
-        _warn(
+        POE::Kernel::_warn(
           "!!!\t\t\thandle  = $hnd_rec->[HSS_HANDLE]\n",
           "!!!\t\t\tsession = $hnd_rec->[HSS_SESSION]\n",
           "!!!\t\t\tevent   = $hnd_rec->[HSS_STATE]\n",
@@ -133,15 +123,15 @@ sub _data_handle_finalize {
       }
     }
 
-    _warn(
+    POE::Kernel::_warn(
       "!!!\tWrite:\n",
       "!!!\t\trefcnt  = $wr->[FMO_REFCOUNT]\n",
       "!!!\t\tev cnt  = $wr->[FMO_EV_COUNT]\n",
     );
     while (my ($ses, $ses_rec) = each(%{$wr->[FMO_SESSIONS]})) {
-      _warn "!!!\t\tsession = $ses\n";
+      POE::Kernel::_warn "!!!\t\tsession = $ses\n";
       while (my ($handle, $hnd_rec) = each(%{$ses_rec})) {
-        _warn(
+        POE::Kernel::_warn(
           "!!!\t\t\thandle  = $hnd_rec->[HSS_HANDLE]\n",
           "!!!\t\t\tsession = $hnd_rec->[HSS_SESSION]\n",
           "!!!\t\t\tevent   = $hnd_rec->[HSS_STATE]\n",
@@ -150,15 +140,15 @@ sub _data_handle_finalize {
       }
     }
 
-    _warn(
+    POE::Kernel::_warn(
       "!!!\tException:\n",
       "!!!\t\trefcnt  = $ex->[FMO_REFCOUNT]\n",
       "!!!\t\tev cnt  = $ex->[FMO_EV_COUNT]\n",
     );
     while (my ($ses, $ses_rec) = each(%{$ex->[FMO_SESSIONS]})) {
-      _warn "!!!\t\tsession = $ses\n";
+      POE::Kernel::_warn "!!!\t\tsession = $ses\n";
       while (my ($handle, $hnd_rec) = each(%{$ses_rec})) {
-        _warn(
+        POE::Kernel::_warn(
           "!!!\t\t\thandle  = $hnd_rec->[HSS_HANDLE]\n",
           "!!!\t\t\tsession = $hnd_rec->[HSS_SESSION]\n",
           "!!!\t\t\tevent   = $hnd_rec->[HSS_STATE]\n",
@@ -170,13 +160,13 @@ sub _data_handle_finalize {
 
   while (my ($ses, $hnd_rec) = each(%kr_ses_to_handle)) {
     $finalized_ok = 0;
-    _warn "!!! Leaked handle in $ses\n";
+    POE::Kernel::_warn "!!! Leaked handle in $ses\n";
     while (my ($hnd, $rc) = each(%$hnd_rec)) {
-      _warn(
+      POE::Kernel::_warn(
         "!!!\tHandle: $hnd (tot refcnt=$rc->[SH_REFCOUNT])\n",
-        "!!!\t\tRead      refcnt: $rc->[SH_MODECOUNT]->[MODE_RD]\n",
-        "!!!\t\tWrite     refcnt: $rc->[SH_MODECOUNT]->[MODE_WR]\n",
-        "!!!\t\tException refcnt: $rc->[SH_MODECOUNT]->[MODE_EX]\n",
+        "!!!\t\tRead      refcnt: $rc->[SH_MODECOUNT]->[POE::Kernel::MODE_RD]\n",
+        "!!!\t\tWrite     refcnt: $rc->[SH_MODECOUNT]->[POE::Kernel::MODE_WR]\n",
+        "!!!\t\tException refcnt: $rc->[SH_MODECOUNT]->[POE::Kernel::MODE_EX]\n",
       );
     }
   }
@@ -198,8 +188,8 @@ sub _data_handle_resume_requested_state {
 
   my $kr_fno_rec  = $kr_filenos{$fileno}->[$mode];
 
-  if (TRACE_FILES) {
-    _warn(
+  if (POE::Kernel::TRACE_FILES) {
+    POE::Kernel::_warn(
       "<fh> decrementing event count in mode ($mode) ",
       "for fileno (", $fileno, ") from count (",
       $kr_fno_rec->[FMO_EV_COUNT], ")"
@@ -219,13 +209,13 @@ sub _data_handle_resume_requested_state {
       $self->loop_resume_filehandle($handle, $mode);
       $kr_fno_rec->[FMO_ST_ACTUAL] = HS_RUNNING;
     }
-    elsif (ASSERT_DATA) {
-      _trap();
+    elsif (POE::Kernel::ASSERT_DATA) {
+      POE::Kernel::_trap();
     }
   }
-  elsif (ASSERT_DATA) {
+  elsif (POE::Kernel::ASSERT_DATA) {
     if ($kr_fno_rec->[FMO_EV_COUNT] < 0) {
-      _trap "handle event count went below zero";
+      POE::Kernel::_trap "handle event count went below zero";
     }
   }
 }
@@ -237,8 +227,8 @@ sub _data_handle_enqueue_ready {
   my ($self, $mode, @filenos) = @_;
 
   foreach my $fileno (@filenos) {
-    if (ASSERT_DATA) {
-      _trap "internal inconsistency: undefined fileno" unless defined $fileno;
+    if (POE::Kernel::ASSERT_DATA) {
+      POE::Kernel::_trap "internal inconsistency: undefined fileno" unless defined $fileno;
     }
 
     my $kr_fno_rec = $kr_filenos{$fileno}->[$mode];
@@ -252,10 +242,10 @@ sub _data_handle_enqueue_ready {
     foreach my $select (@selects) {
       $self->_data_ev_enqueue(
         $select->[HSS_SESSION], $select->[HSS_SESSION],
-        $select->[HSS_STATE], ET_SELECT,
-        [ $select->[HSS_HANDLE],  # EA_SEL_HANDLE
-          $mode,                  # EA_SEL_MODE
-          @{$select->[HSS_ARGS]}, # EA_SEL_ARGS
+        $select->[HSS_STATE], POE::Kernel::ET_SELECT,
+        [ $select->[HSS_HANDLE],  # POE::Kernel::EA_SEL_HANDLE
+          $mode,                  # POE::Kernel::EA_SEL_MODE
+          @{$select->[HSS_ARGS]}, # POE::Kernel::EA_SEL_ARGS
         ],
         __FILE__, __LINE__, undef, time(),
       );
@@ -269,8 +259,8 @@ sub _data_handle_enqueue_ready {
         $kr_fno_rec->[FMO_ST_ACTUAL] = HS_PAUSED;
       }
 
-      if (TRACE_FILES) {
-        _warn(
+      if (POE::Kernel::TRACE_FILES) {
+        POE::Kernel::_warn(
           "<fh> incremented event count in mode ($mode) ",
           "for fileno ($fileno) to count ($kr_fno_rec->[FMO_EV_COUNT])"
         );
@@ -327,8 +317,8 @@ sub _data_handle_add {
         0,            # FNO_TOT_REFCOUNT
       ];
 
-    if (TRACE_FILES) {
-      _warn "<fh> adding fd ($fd) in mode ($mode)";
+    if (POE::Kernel::TRACE_FILES) {
+      POE::Kernel::_warn "<fh> adding fd ($fd) in mode ($mode)";
     }
 
     # For DOSISH systems like OS/2.  Wrapped in eval{} in case it's a
@@ -338,16 +328,16 @@ sub _data_handle_add {
     # Turn off blocking unless it's tied or a plain file.
     unless (tied *$handle or -f $handle) {
 
-      unless (RUNNING_IN_HELL) {
+      unless (POE::Kernel::RUNNING_IN_HELL) {
         if ($] >= 5.008) {
           $handle->blocking(0);
         }
         else {
           # Long, drawn out, POSIX way.
           my $flags = fcntl($handle, F_GETFL, 0)
-            or _trap "fcntl($handle, F_GETFL, 0) fails: $!\n";
+            or POE::Kernel::_trap "fcntl($handle, F_GETFL, 0) fails: $!\n";
           until (fcntl($handle, F_SETFL, $flags | O_NONBLOCK)) {
-            _trap(
+            POE::Kernel::_trap(
               "fcntl($handle [" . fileno($handle) . "], F_SETFL [" .
               F_SETFL . "], $flags | O_NONBLOCK [" . O_NONBLOCK .
               "]) fails: $!"
@@ -364,7 +354,7 @@ sub _data_handle_add {
           $handle,
           0x80000000 | (4 << 16) | (ord('f') << 8) | 126,
           \$set_it
-        ) or _trap(
+        ) or POE::Kernel::_trap(
           "ioctl($handle, FIONBIO, $set_it) fails: errno " . ($!+0) . " = $!\n"
         );
       }
@@ -386,8 +376,8 @@ sub _data_handle_add {
     # as a "resume" in this mode.
 
     if (exists $kr_fno_rec->[FMO_SESSIONS]->{$session}->{$handle}) {
-      if (TRACE_FILES) {
-        _warn(
+      if (POE::Kernel::TRACE_FILES) {
+        POE::Kernel::_warn(
           "<fh> running fileno($fd) mode($mode) " .
           "count($kr_fno_rec->[FMO_EV_COUNT])"
         );
@@ -460,7 +450,7 @@ sub _data_handle_add {
           }
         }
       }
-      _trap "internal inconsistency";
+      POE::Kernel::_trap "internal inconsistency";
     }
   }
 
@@ -534,8 +524,8 @@ sub _data_handle_remove {
       exists($kr_fno_rec->[FMO_SESSIONS]->{$session}->{$handle})
     ) {
 
-      TRACE_FILES and
-        _warn "<fh> removing handle ($handle) fileno ($fd) mode ($mode) from " . Carp::shortmess;
+      POE::Kernel::TRACE_FILES and
+        POE::Kernel::_warn "<fh> removing handle ($handle) fileno ($fd) mode ($mode) from " . Carp::shortmess;
 
       # Remove the handle from the kernel's session record.
 
@@ -549,32 +539,32 @@ sub _data_handle_remove {
       # FMO_EV_COUNT for each, because we've removed them.  This makes
       # sense.
       my $my_select = sub {
-        return 0 unless $_[0]->[EV_TYPE]    &  ET_SELECT;
-        return 0 unless $_[0]->[EV_SESSION] == $kill_session;
-        return 0 unless $_[0]->[EV_NAME]    eq $kill_event;
-        return 0 unless $_[0]->[EV_ARGS]->[EA_SEL_HANDLE] == $handle;
-        return 0 unless $_[0]->[EV_ARGS]->[EA_SEL_MODE]   == $mode;
+        return 0 unless $_[0]->[POE::Kernel::EV_TYPE]    &  POE::Kernel::ET_SELECT;
+        return 0 unless $_[0]->[POE::Kernel::EV_SESSION] == $kill_session;
+        return 0 unless $_[0]->[POE::Kernel::EV_NAME]    eq $kill_event;
+        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[POE::Kernel::EA_SEL_HANDLE] == $handle;
+        return 0 unless $_[0]->[POE::Kernel::EV_ARGS]->[POE::Kernel::EA_SEL_MODE]   == $mode;
         return 1;
       };
 
       foreach ($kr_queue->remove_items($my_select)) {
         my ($time, $id, $event) = @$_;
-        $self->_data_ev_refcount_dec( @$event[EV_SESSION, EV_SOURCE] );
+        $self->_data_ev_refcount_dec( @$event[POE::Kernel::EV_SESSION, POE::Kernel::EV_SOURCE] );
 
-        TRACE_EVENTS and
-          _warn "<ev> removing select event $id ``$event->[EV_NAME]''" . Carp::shortmess;
+        POE::Kernel::TRACE_EVENTS and
+          POE::Kernel::_warn "<ev> removing select event $id ``$event->[POE::Kernel::EV_NAME]''" . Carp::shortmess;
 
         $kr_fno_rec->[FMO_EV_COUNT]--;
 
-        if (TRACE_FILES) {
-          _warn(
+        if (POE::Kernel::TRACE_FILES) {
+          POE::Kernel::_warn(
             "<fh> fileno $fd mode $mode event count went to ",
             $kr_fno_rec->[FMO_EV_COUNT]
           );
         }
 
-        if (ASSERT_DATA) {
-          _trap "<dt> fileno $fd mode $mode event count went below zero"
+        if (POE::Kernel::ASSERT_DATA) {
+          POE::Kernel::_trap "<dt> fileno $fd mode $mode event count went below zero"
             if $kr_fno_rec->[FMO_EV_COUNT] < 0;
         }
       }
@@ -583,8 +573,8 @@ sub _data_handle_remove {
 
       $kr_fno_rec->[FMO_REFCOUNT]--;
 
-      if (ASSERT_DATA) {
-        _trap "<dt> fileno mode refcount went below zero"
+      if (POE::Kernel::ASSERT_DATA) {
+        POE::Kernel::_trap "<dt> fileno mode refcount went below zero"
           if $kr_fno_rec->[FMO_REFCOUNT] < 0;
       }
 
@@ -609,26 +599,26 @@ sub _data_handle_remove {
 
       $kr_fileno->[FNO_TOT_REFCOUNT]--;
 
-      if (ASSERT_DATA) {
-        _trap "<dt> fileno refcount went below zero"
+      if (POE::Kernel::ASSERT_DATA) {
+        POE::Kernel::_trap "<dt> fileno refcount went below zero"
           if $kr_fileno->[FNO_TOT_REFCOUNT] < 0;
       }
 
       unless ($kr_fileno->[FNO_TOT_REFCOUNT]) {
-        if (TRACE_FILES) {
-          _warn "<fh> deleting handle ($handle) fileno ($fd) entirely";
+        if (POE::Kernel::TRACE_FILES) {
+          POE::Kernel::_warn "<fh> deleting handle ($handle) fileno ($fd) entirely";
         }
         delete $kr_filenos{$fd};
       }
     }
-    elsif (TRACE_FILES) {
-      _warn(
+    elsif (POE::Kernel::TRACE_FILES) {
+      POE::Kernel::_warn(
         "<fh> session doesn't own handle ($handle) fileno ($fd) mode ($mode)"
       );
     }
   }
-  elsif (TRACE_FILES) {
-    _warn(
+  elsif (POE::Kernel::TRACE_FILES) {
+    POE::Kernel::_warn(
       "<fh> handle ($handle) fileno ($fd) is not registered with POE::Kernel"
     );
   }
@@ -654,8 +644,8 @@ sub _data_handle_remove {
 
       $ss_handle->[SH_REFCOUNT]--;
 
-      if (ASSERT_DATA) {
-        _trap "<dt> refcount went below zero"
+      if (POE::Kernel::ASSERT_DATA) {
+        POE::Kernel::_trap "<dt> refcount went below zero"
           if $ss_handle->[SH_REFCOUNT] < 0;
       }
 
@@ -666,8 +656,8 @@ sub _data_handle_remove {
           unless keys %{$kr_ses_to_handle{$session}};
       }
     }
-    elsif (TRACE_FILES) {
-      _warn(
+    elsif (POE::Kernel::TRACE_FILES) {
+      POE::Kernel::_warn(
         "<fh> handle ($handle) fileno ($fd) is not registered with",
         $self->_data_alias_loggable($session)
       );
@@ -685,8 +675,8 @@ sub _data_handle_resume {
   my $kr_fileno = $kr_filenos{fileno($handle)};
   my $kr_fno_rec = $kr_fileno->[$mode];
 
-  if (TRACE_FILES) {
-    _warn(
+  if (POE::Kernel::TRACE_FILES) {
+    POE::Kernel::_warn(
       "<fh> resume test: fileno(" . fileno($handle) . ") mode($mode) " .
       "count($kr_fno_rec->[FMO_EV_COUNT])"
     );
@@ -712,8 +702,8 @@ sub _data_handle_pause {
   my $kr_fileno = $kr_filenos{fileno($handle)};
   my $kr_fno_rec = $kr_fileno->[$mode];
 
-  if (TRACE_FILES) {
-    _warn(
+  if (POE::Kernel::TRACE_FILES) {
+    POE::Kernel::_warn(
       "<fh> pause test: fileno(" . fileno($handle) . ") mode($mode) " .
       "count($kr_fno_rec->[FMO_EV_COUNT])"
     );
@@ -753,12 +743,12 @@ sub _data_handle_clear_session {
     my $handle = $_->[SH_HANDLE];
     my $refcount = $_->[SH_MODECOUNT];
 
-    $self->_data_handle_remove($handle, MODE_RD, $session)
-      if $refcount->[MODE_RD];
-    $self->_data_handle_remove($handle, MODE_WR, $session)
-      if $refcount->[MODE_WR];
-    $self->_data_handle_remove($handle, MODE_EX, $session)
-      if $refcount->[MODE_EX];
+    $self->_data_handle_remove($handle, POE::Kernel::MODE_RD, $session)
+      if $refcount->[POE::Kernel::MODE_RD];
+    $self->_data_handle_remove($handle, POE::Kernel::MODE_WR, $session)
+      if $refcount->[POE::Kernel::MODE_WR];
+    $self->_data_handle_remove($handle, POE::Kernel::MODE_EX, $session)
+      if $refcount->[POE::Kernel::MODE_EX];
   }
 }
 

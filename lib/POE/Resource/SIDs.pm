@@ -1,17 +1,8 @@
-# $Id: SIDs.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Session IDs: The data to maintain them, and accessors to get at them
-# sanely from other files.
-
 package POE::Resource::SIDs;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# These methods are folded into POE::Kernel;
-package POE::Kernel;
-
+use Moose::Role;
 use strict;
+
+package POE::Kernel;
 
 ### Map session IDs to sessions.  Map sessions to session IDs.
 ### Maintain a sequence number for determining the next session ID.
@@ -29,8 +20,8 @@ my %kr_session_to_id;
 my $kr_sid_seq = 1;
 
 sub _data_sid_initialize {
-  $poe_kernel->[KR_SESSION_IDS] = \%kr_session_ids;
-  $poe_kernel->[KR_SID_SEQ] = \$kr_sid_seq;
+  $POE::Kernel::poe_kernel->[POE::Kernel::KR_SESSION_IDS] = \%kr_session_ids;
+  $POE::Kernel::poe_kernel->[POE::Kernel::KR_SID_SEQ] = \$kr_sid_seq;
 }
 
 ### End-run leak checking.
@@ -38,11 +29,11 @@ sub _data_sid_initialize {
 sub _data_sid_finalize {
   my $finalized_ok = 1;
   while (my ($sid, $ses) = each(%kr_session_ids)) {
-    _warn "!!! Leaked session ID: $sid = $ses\n";
+    POE::Kernel::_warn "!!! Leaked session ID: $sid = $ses\n";
     $finalized_ok = 0;
   }
   while (my ($ses, $sid) = each(%kr_session_to_id)) {
-    _warn "!!! Leak sid cross-reference: $ses = $sid\n";
+    POE::Kernel::_warn "!!! Leak sid cross-reference: $ses = $sid\n";
     $finalized_ok = 0;
   }
   return $finalized_ok;
@@ -69,8 +60,8 @@ sub _data_sid_set {
 sub _data_sid_clear {
   my ($self, $session) = @_;
   my $sid = delete $kr_session_to_id{$session};
-  if (ASSERT_DATA) {
-    _trap("SID not defined") unless defined $sid;
+  if (POE::Kernel::ASSERT_DATA) {
+    POE::Kernel::_trap("SID not defined") unless defined $sid;
   }
   delete $kr_session_ids{$sid};
 }

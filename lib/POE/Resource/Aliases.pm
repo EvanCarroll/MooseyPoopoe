@@ -1,16 +1,5 @@
-# $Id: Aliases.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Manage the POE::Kernel data structures necessary to keep track of
-# session aliases.
-
 package POE::Resource::Aliases;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# These methods are folded into POE::Kernel;
-package POE::Kernel;
-
+use Moose::Role;
 use strict;
 
 ### The table of session aliases, and the sessions they refer to.
@@ -29,7 +18,7 @@ my %kr_ses_to_alias;
 #  );
 
 sub _data_alias_initialize {
-  $poe_kernel->[KR_ALIASES] = \%kr_aliases;
+  $POE::Kernel::poe_kernel->[POE::Kernel::KR_ALIASES] = \%kr_aliases;
 }
 
 ### End-run leak checking.  Returns true if finalization was ok, or
@@ -38,12 +27,12 @@ sub _data_alias_initialize {
 sub _data_alias_finalize {
   my $finalized_ok = 1;
   while (my ($alias, $ses) = each(%kr_aliases)) {
-    _warn "!!! Leaked alias: $alias = $ses\n";
+    POE::Kernel::_warn "!!! Leaked alias: $alias = $ses\n";
     $finalized_ok = 0;
   }
   while (my ($ses, $alias_rec) = each(%kr_ses_to_alias)) {
     my @aliases = keys(%$alias_rec);
-    _warn "!!! Leaked alias cross-reference: $ses (@aliases)\n";
+    POE::Kernel::_warn "!!! Leaked alias cross-reference: $ses (@aliases)\n";
     $finalized_ok = 0;
   }
   return $finalized_ok;
@@ -120,8 +109,8 @@ sub _data_alias_count_ses {
 sub _data_alias_loggable {
   my ($self, $session) = @_;
 
-  if (ASSERT_DATA) {
-    _trap unless ref($session);
+  if (POE::Kernel::ASSERT_DATA) {
+    POE::Kernel::_trap unless ref($session);
   }
 
   "session " . $session->ID . " (" .

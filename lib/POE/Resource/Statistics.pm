@@ -1,18 +1,5 @@
-# $Id: Statistics.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Data and methods to collect runtime statistics about POE, allowing
-# clients to look at how much work their POE server is performing.
-# None of this stuff will activate unless TRACE_STATISTICS or
-# TRACE_PROFILE are enabled.
-
 package POE::Resource::Statistics;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# We fold all this stuff back into POE::Kernel
-package POE::Kernel;
-
+use Moose::Role;
 use strict;
 
 # We keep a number of metrics (idle time, user time, etc).
@@ -27,7 +14,7 @@ my $_stat_wpos        = 0;  # where to currently write metrics (circ. buffer)
 my $_stat_rpos        = 0;  # where to currently write metrics (circ. buffer)
 my %average;
 
-# This is for collecting event frequencies if TRACE_PROFILE is
+# This is for collecting event frequencies if POE::Kernel::TRACE_PROFILE is
 # enabled.
 my %profile;
 
@@ -38,7 +25,7 @@ sub _data_stat_initialize {
   my ($self) = @_;
   $self->_data_stat_reset;
   $self->_data_ev_enqueue(
-    $self, $self, EN_STAT, ET_STAT, [ ],
+    $self, $self, POE::Kernel::EN_STAT, POE::Kernel::ET_STAT, [ ],
     __FILE__, __LINE__, undef, time() + $_stat_interval
   );
 }
@@ -47,7 +34,7 @@ sub _data_stat_finalize {
   my ($self) = @_;
   $self->_data_stat_tick();
 
-  if (TRACE_STATISTICS) {
+  if (POE::Kernel::TRACE_STATISTICS) {
     POE::Kernel::_warn(
       '<pr> ,----- Observed Statistics ' , ('-' x 47), ",\n"
     );
@@ -97,7 +84,7 @@ sub _data_stat_finalize {
     );
   }
 
-  if (TRACE_PROFILE) {
+  if (POE::Kernel::TRACE_PROFILE) {
     stat_show_profile();
   }
 }
@@ -139,7 +126,7 @@ sub _data_stat_tick {
 
   $self->_data_stat_reset;
   $self->_data_ev_enqueue(
-    $self, $self, EN_STAT, ET_STAT, [ ],
+    $self, $self, POE::Kernel::EN_STAT, POE::Kernel::ET_STAT, [ ],
     __FILE__, __LINE__, undef, time() + $_stat_interval
   ) if $self->_data_ses_count() > 1;
 }
@@ -179,13 +166,13 @@ sub stat_getprofile {
   my ($self, $session) = @_;
 
   # Nothing to do if tracing is off.  But someone may call this anyway.
-  return unless TRACE_PROFILE;
+  return unless POE::Kernel::TRACE_PROFILE;
 
   # Return global profile if session isn't specified.
   return %profile unless defined $session;
 
   # Return a session profile, if the session resolves.
-  my $resolved_session = $poe_kernel->_resolve_session( $session );
+  my $resolved_session = $POE::Kernel::poe_kernel->_resolve_session( $session );
   return unless $resolved_session;
 
   # No need to avoid autovivification.  The session is guaranteed to
@@ -213,7 +200,7 @@ POE::Resource::Statistics -- experimental runtime statistics for POE
 
 =head1 SYNOPSIS
 
-  my %stats = $poe_kernel->stat_getdata;
+  my %stats = $POE::Kernel::poe_kernel->stat_getdata;
   printf "Idle = %3.2f\n", 100*$stats{avg_idle_seconds}/$stats{interval};
 
 =head1 DESCRIPTION
