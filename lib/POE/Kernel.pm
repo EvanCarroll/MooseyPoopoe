@@ -202,25 +202,6 @@ sub KR_RUN_SESSION () { 0x02 }  # sessions created
 sub KR_RUN_DONE    () { 0x04 }  # run returned
 my $kr_run_warning = 0;
 
-#------------------------------------------------------------------------------
-# Events themselves.
-
-sub EV_SESSION    () { 0 }  # [ $destination_session,
-sub EV_SOURCE     () { 1 }  #   $sender_session,
-sub EV_NAME       () { 2 }  #   $event_name,
-sub EV_TYPE       () { 3 }  #   $event_type,
-sub EV_ARGS       () { 4 }  #   \@event_parameters_arg0_etc,
-                            #
-                            #   (These fields go towards the end
-                            #   because they are optional in some
-                            #   cases.  TODO: Is this still true?)
-                            #
-sub EV_OWNER_FILE () { 5 }  #   $caller_filename_where_enqueued,
-sub EV_OWNER_LINE () { 6 }  #   $caller_line_where_enqueued,
-sub EV_TIME       () { 7 }  #   Maintained by POE::Queue (create time)
-sub EV_SEQ        () { 8 }  #   Maintained by POE::Queue (unique event ID)
-                            # ]
-
 # These are the names of POE's internal events.  They're in constants
 # so we don't mistype them again.
 
@@ -422,7 +403,6 @@ sub _idle_queue_size   { $idle_queue_size;   }
     $SIG{__DIE__} = $orig_die_handler;
   }
 }
-
 
 sub _trap {
   local $Carp::CarpLevel = $Carp::CarpLevel + 1;
@@ -1964,8 +1944,8 @@ sub alarm_remove {
   # value when someone needs something useful from it.
 
   return unless defined wantarray;
-  return ( $event->[EV_NAME], $time, @{$event->[EV_ARGS]} ) if wantarray;
-  return [ $event->[EV_NAME], $time, @{$event->[EV_ARGS]} ];
+  return ( $event->[POE::Resource::Events->EV_NAME], $time, @{$event->[POE::Resource::Events->EV_ARGS]} ) if wantarray;
+  return [ $event->[POE::Resource::Events->EV_NAME], $time, @{$event->[POE::Resource::Events->EV_ARGS]} ];
 }
 
 # Move an alarm to a new time.  This virtually removes the alarm and
@@ -1993,7 +1973,7 @@ sub alarm_adjust {
   }
 
   my $my_alarm = sub {
-    $_[0]->[EV_SESSION] == $kr_active_session;
+    $_[0]->[POE::Resource::Events->EV_SESSION] == $kr_active_session;
   };
   return $kr_queue->adjust_priority($alarm_id, $my_alarm, $delta);
 }
@@ -2065,7 +2045,7 @@ sub delay_adjust {
   }
 
   my $my_delay = sub {
-    $_[0]->[EV_SESSION] == $kr_active_session;
+    $_[0]->[POE::Resource::Events->EV_SESSION] == $kr_active_session;
   };
 
   if (TRACE_EVENTS) {
@@ -3954,7 +3934,7 @@ select_resume_read() for further discussion.
 
 TODO - Practical example here.
 
-=head3 select FILE_HANDLE [, EV_READ [, EV_WRITE [, EV_EXPEDITE [, ARGS] ] ] ]
+=head3 select FILE_HANDLE [, POE::Resource::Events::EV_READ [, POE::Resource::Events->EV_WRITE [, POE::Resource::Events->EV_EXPEDITE [, ARGS] ] ] ]
 
 POE::Kernel's select() method sets or clears a FILE_HANDLE's read,
 write and expedite watchers at once.  It's a little more expensive

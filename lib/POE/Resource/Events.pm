@@ -2,6 +2,23 @@ package POE::Resource::Events;
 use Moose::Role;
 use strict;
 
+#------------------------------------------------------------------------------
+# Events themselves.
+
+use constant {
+	EV_SESSION      => 0  # $destination_session,
+	, EV_SOURCE     => 1  # $sender_session,
+	, EV_NAME       => 2  # $event_name,
+	, EV_TYPE       => 3  # $event_type,
+	, EV_ARGS       => 4  # \@event_parameters_arg0_etc,
+	# (These fields go towards the end because they are optional in some cases
+	# TODO: Is this still true?)
+	, EV_OWNER_FILE => 5  # $caller_filename_where_enqueued,
+	, EV_OWNER_LINE => 6  # $caller_line_where_enqueued,
+	, EV_TIME       => 7  # Maintained by POE::Queue (create time)
+	, EV_SEQ        => 8  # Maintained by POE::Queue (unique event ID)
+};
+
 # A local copy of the queue so we can manipulate it directly.
 my $kr_queue;
 
@@ -94,7 +111,7 @@ sub _data_ev_clear_session {
   my ($self, $session) = @_;
 
   my $my_event = sub {
-    ($_[0]->[POE::Kernel::EV_SESSION] == $session) || ($_[0]->[POE::Kernel::EV_SOURCE] == $session)
+    ($_[0]->[EV_SESSION] == $session) || ($_[0]->[EV_SOURCE] == $session)
   };
 
   # TODO - This is probably incorrect.  The total event count will be
@@ -106,7 +123,7 @@ sub _data_ev_clear_session {
   );
 
   foreach ($kr_queue->remove_items($my_event, $total_event_count)) {
-    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[POE::Kernel::EV_SOURCE, POE::Kernel::EV_SESSION]);
+    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[EV_SOURCE, EV_SESSION]);
   }
 
   Carp::croak if delete $event_count{$session};
@@ -127,14 +144,14 @@ sub _data_ev_clear_alarm_by_name {
   my ($self, $session, $alarm_name) = @_;
 
   my $my_alarm = sub {
-    return 0 unless $_[0]->[POE::Kernel::EV_TYPE] & POE::Kernel::ET_ALARM;
-    return 0 unless $_[0]->[POE::Kernel::EV_SESSION] == $session;
-    return 0 unless $_[0]->[POE::Kernel::EV_NAME] eq $alarm_name;
+    return 0 unless $_[0]->[EV_TYPE] & POE::Kernel::ET_ALARM;
+    return 0 unless $_[0]->[EV_SESSION] == $session;
+    return 0 unless $_[0]->[EV_NAME] eq $alarm_name;
     return 1;
   };
 
   foreach ($kr_queue->remove_items($my_alarm)) {
-    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[POE::Kernel::EV_SOURCE, POE::Kernel::EV_SESSION]);
+    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[EV_SOURCE, EV_SESSION]);
   }
 }
 
@@ -146,7 +163,7 @@ sub _data_ev_clear_alarm_by_id {
   my ($self, $session, $alarm_id) = @_;
 
   my $my_alarm = sub {
-    $_[0]->[POE::Kernel::EV_SESSION] == $session;
+    $_[0]->[EV_SESSION] == $session;
   };
 
   my ($time, $id, $event) = $kr_queue->remove_item($alarm_id, $my_alarm);
@@ -154,12 +171,12 @@ sub _data_ev_clear_alarm_by_id {
 
   if (POE::Kernel::TRACE_EVENTS) {
     POE::Kernel::_warn(
-      "<ev> removed event $id ``", $event->[POE::Kernel::EV_NAME], "'' to ",
+      "<ev> removed event $id ``", $event->[EV_NAME], "'' to ",
       $self->_data_alias_loggable($session), " at $time"
     );
   }
 
-  $self->_data_ev_refcount_dec( @$event[POE::Kernel::EV_SOURCE, POE::Kernel::EV_SESSION] );
+  $self->_data_ev_refcount_dec( @$event[EV_SOURCE, EV_SESSION] );
   return ($time, $event);
 }
 
@@ -169,16 +186,16 @@ sub _data_ev_clear_alarm_by_session {
   my ($self, $session) = @_;
 
   my $my_alarm = sub {
-    return 0 unless $_[0]->[POE::Kernel::EV_TYPE] & POE::Kernel::ET_ALARM;
-    return 0 unless $_[0]->[POE::Kernel::EV_SESSION] == $session;
+    return 0 unless $_[0]->[EV_TYPE] & POE::Kernel::ET_ALARM;
+    return 0 unless $_[0]->[EV_SESSION] == $session;
     return 1;
   };
 
   my @removed;
   foreach ($kr_queue->remove_items($my_alarm)) {
     my ($time, $event) = @$_[POE::Queue::Array::ITEM_PRIORITY, POE::Queue::Array::ITEM_PAYLOAD];
-    $self->_data_ev_refcount_dec( @$event[POE::Kernel::EV_SOURCE, POE::Kernel::EV_SESSION] );
-    push @removed, [ $event->[POE::Kernel::EV_NAME], $time, @{$event->[POE::Kernel::EV_ARGS]} ];
+    $self->_data_ev_refcount_dec( @$event[EV_SOURCE, EV_SESSION] );
+    push @removed, [ $event->[EV_NAME], $time, @{$event->[EV_ARGS]} ];
   }
 
   return @removed;
@@ -238,7 +255,7 @@ sub _data_ev_dispatch_due {
     my ($due_time, $id, $event) = $kr_queue->dequeue_next();
 
     if (POE::Kernel::TRACE_EVENTS) {
-      POE::Kernel::_warn("<ev> dispatching event $id ($event->[POE::Kernel::EV_NAME])");
+      POE::Kernel::_warn("<ev> dispatching event $id ($event->[EV_NAME])");
     }
 
     # An event is "blocked" if its due time is earlier than the
@@ -251,7 +268,7 @@ sub _data_ev_dispatch_due {
       $self->_data_stat_add('blocked_seconds', $now - $due_time);
     }
 
-    $self->_data_ev_refcount_dec($event->[POE::Kernel::EV_SOURCE], $event->[POE::Kernel::EV_SESSION]);
+    $self->_data_ev_refcount_dec($event->[EV_SOURCE], $event->[EV_SESSION]);
     $self->_dispatch_event(@$event, $due_time, $id);
 
     # An exception occurred.
