@@ -11,8 +11,8 @@ use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
 # positions for them.
 use constant {
 	EA_SEL_HANDLE => 0
-	, EA_SEL_MODE   => 1
-	, EA_SEL_ARGS   => 2
+	, EA_SEL_MODE => 1
+	, EA_SEL_ARGS => 2
 };
 
 ### Some portability things.
