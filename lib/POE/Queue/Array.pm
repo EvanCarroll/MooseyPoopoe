@@ -81,9 +81,7 @@ sub enqueue {
 
 sub dequeue_next {
 	my $self = shift;
-	## XXX mauke says the keys here isn't needed in scalar context I need to look into this
-	## I seem to remember their being an edge case.
-	return unless keys %db_id && %db_priority;
+	return unless %db_id && %db_priority;
 	
 	my $item;
 	PRIORITY: while (1) {
@@ -265,7 +263,7 @@ sub peek_items {
 	$count ||= scalar keys %db_id;
 
 	my @items;
-	foreach my $priority ( reverse sort keys %db_priority ) {
+	foreach my $priority ( sort {$b<=>$a} keys %db_priority ) {
 		
 		foreach my $item ( reverse @{ $db_priority{$priority} } ) {
 			## XXX Not Kosher, we skip through undefined (deleted by id)
