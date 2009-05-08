@@ -81,6 +81,8 @@ sub enqueue {
 
 sub dequeue_next {
 	my $self = shift;
+	## XXX mauke says the keys here isn't needed in scalar context I need to look into this
+	## I seem to remember their being an edge case.
 	return unless keys %db_id && %db_priority;
 	
 	my $item;
@@ -104,7 +106,7 @@ sub dequeue_next {
 
 		## Clear priority table if there are no more items of the same priority
 		unless ( @{$db_priority{$priority}} ) {
-			delete $db_priority{$priority} unless @{ $db_priority{$priority} };
+			delete $db_priority{$priority};
 			$self->_reset_min_priority;
 		}
 
