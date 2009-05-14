@@ -20,7 +20,6 @@ use constant {
 };
 
 # A local copy of the queue so we can manipulate it directly.
-my $kr_queue;
 
 my %event_count;
 #  ( $session => $count,
@@ -33,11 +32,6 @@ my %post_count;
 #  );
 
 ### Begin-run initialization.
-
-sub _data_ev_initialize {
-  my ($self, $queue) = @_;
-  $kr_queue = $queue;
-}
 
 ### End-run leak checking.
 
@@ -74,8 +68,8 @@ sub _data_ev_enqueue {
   # This is awkward, but faster than using the fields individually.
   my $event_to_enqueue = [ @_[1..8] ];
 
-  my $old_head_priority = $kr_queue->get_next_priority();
-  my $new_id = $kr_queue->enqueue($time, $event_to_enqueue);
+  my $old_head_priority = $self->kr_queue->get_next_priority();
+  my $new_id = $self->kr_queue->enqueue($time, $event_to_enqueue);
 
   if (POE::Kernel::TRACE_EVENTS) {
     POE::Kernel::_warn(
@@ -86,7 +80,7 @@ sub _data_ev_enqueue {
     );
   }
 
-  if ($kr_queue->get_item_count() == 1) {
+  if ($self->kr_queue->get_item_count() == 1) {
     $self->loop_resume_time_watcher($time);
   }
   elsif ($time < $old_head_priority) {
@@ -122,8 +116,8 @@ sub _data_ev_clear_session {
     ($post_count{$session} || 0)
   );
 
-  foreach ($kr_queue->remove_items($my_event, $total_event_count)) {
-    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[EV_SOURCE, EV_SESSION]);
+  foreach ($self->kr_queue->remove_items($my_event, $total_event_count)) {
+    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD()]}[EV_SOURCE, EV_SESSION]);
   }
 
   Carp::croak if delete $event_count{$session};
@@ -150,8 +144,8 @@ sub _data_ev_clear_alarm_by_name {
     return 1;
   };
 
-  foreach ($kr_queue->remove_items($my_alarm)) {
-    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD]}[EV_SOURCE, EV_SESSION]);
+  foreach ($self->kr_queue->remove_items($my_alarm)) {
+    $self->_data_ev_refcount_dec(@{$_->[POE::Queue::Array::ITEM_PAYLOAD()]}[EV_SOURCE, EV_SESSION]);
   }
 }
 
@@ -166,7 +160,7 @@ sub _data_ev_clear_alarm_by_id {
     $_[0]->[EV_SESSION] == $session;
   };
 
-  my ($time, $id, $event) = $kr_queue->remove_item($alarm_id, $my_alarm);
+  my ($time, $id, $event) = $self->kr_queue->remove_item($alarm_id, $my_alarm);
   return unless defined $time;
 
   if (POE::Kernel::TRACE_EVENTS) {
@@ -192,8 +186,8 @@ sub _data_ev_clear_alarm_by_session {
   };
 
   my @removed;
-  foreach ($kr_queue->remove_items($my_alarm)) {
-    my ($time, $event) = @$_[POE::Queue::Array::ITEM_PRIORITY, POE::Queue::Array::ITEM_PAYLOAD];
+  foreach ($self->kr_queue->remove_items($my_alarm)) {
+    my ($time, $event) = @$_[POE::Queue::Array::ITEM_PRIORITY(), POE::Queue::Array::ITEM_PAYLOAD()];
     $self->_data_ev_refcount_dec( @$event[EV_SOURCE, EV_SESSION] );
     push @removed, [ $event->[EV_NAME], $time, @{$event->[EV_ARGS]} ];
   }
@@ -233,15 +227,14 @@ sub _data_ev_get_count_from {
 }
 
 ### Dispatch events that are due for "now" or earlier.
-
 sub _data_ev_dispatch_due {
   my $self = shift;
 
   if (POE::Kernel::TRACE_EVENTS) {
-    foreach ($kr_queue->peek_items(sub { 1 })) {
-      my @event = map { defined() ? $_ : "(undef)" } @{$_->[POE::Queue::Array::ITEM_PAYLOAD]};
+    foreach ($self->kr_queue->peek_items(sub { 1 })) {
+      my @event = map { defined() ? $_ : "(undef)" } @{$_->[POE::Queue::Array::ITEM_PAYLOAD()]};
       POE::Kernel::_warn(
-        "<ev> time($_->[POE::Queue::Array::ITEM_PRIORITY]) id($_->[POE::Queue::Array::ITEM_ID]) ",
+        "<ev> time($_->[POE::Queue::Array::ITEM_PRIORITY()]) id($_->[POE::Queue::Array::ITEM_ID]) ",
         "event(@event)\n"
       );
     }
@@ -249,10 +242,10 @@ sub _data_ev_dispatch_due {
 
   my $now = time();
   my $next_time;
-  while (defined($next_time = $kr_queue->get_next_priority())) {
+  while (defined($next_time = $self->kr_queue->get_next_priority())) {
     last if $next_time > $now;
 
-    my ($due_time, $id, $event) = $kr_queue->dequeue_next();
+    my ($due_time, $id, $event) = $self->kr_queue->dequeue_next();
 
     if (POE::Kernel::TRACE_EVENTS) {
       POE::Kernel::_warn("<ev> dispatching event $id ($event->[EV_NAME])");
