@@ -13,7 +13,14 @@ use IO::Handle ();
 use File::Spec ();
 		
 
-with 'POE::Resource::wtf';
+with 'POE::Resource::Aliases';
+with 'POE::Resource::Events';
+with 'POE::Resource::Extrefs';
+with 'POE::Resource::FileHandles';
+with 'POE::Resource::Sessions';
+with 'POE::Resource::SIDs';
+with 'POE::Resource::Signals';
+with 'POE::Resource::Statistics';
 
 
 # People expect these to be lexical.
@@ -38,6 +45,14 @@ BEGIN {
     $queue_class = "POE::Queue::Array";
   }
 }
+
+has 'kr_queue' => (
+	isa  => 'Object'
+	, is => 'ro'
+	, lazy => 1
+	, default => sub { $queue_class->new }
+);
+
 
 sub import {
   my ($class, $args) = @_;
@@ -782,7 +797,7 @@ sub BUILD {
       undef,               # KR_SIGNALS - from POE::Resource::Signals
       undef,               # KR_ALIASES - from POE::Resource::Aliases
       \$kr_active_session, # KR_ACTIVE_SESSION
-      $kr_queue,           # KR_QUEUE - reference to an object
+      $self->kr_queue,           # KR_QUEUE - reference to an object
       undef,               # KR_ID
       undef,               # KR_SESSION_IDS - from POE::Resource::SIDS
       undef,               # KR_SID_SEQ - scalar ref from POE::Resource::SIDS
@@ -813,14 +828,13 @@ sub BUILD {
     # We need events before sessions, and the kernel's session before
     # it can start polling for signals.  Statistics gathering requires
     # a polling event as well, so it goes late.
-    $self->_data_ev_initialize($kr_queue);
     $self->_initialize_kernel_session();
     $self->_data_stat_initialize() if TRACE_STATISTICS;
     $self->_data_sig_initialize();
     $self->_data_alias_initialize();
 
     # These other subsystems don't have strange interactions.
-    $self->_data_handle_initialize($kr_queue);
+    $self->_data_handle_initialize($self->kr_queue);
 };
 
 #------------------------------------------------------------------------------
@@ -1349,7 +1363,7 @@ sub _invoke_state {
   elsif ($event eq EN_SIGNAL) {
     if ($etc->[0] eq 'IDLE') {
       unless (
-        $kr_queue->get_item_count() > $idle_queue_size or
+        $self->kr_queue->get_item_count() > $idle_queue_size or
         $self->_data_handle_count()
       ) {
         $self->_data_ev_enqueue(
@@ -1565,12 +1579,12 @@ sub get_active_event {
 
 # FIXME - Should this exist?
 sub get_event_count {
-  return $kr_queue->get_item_count();
+  return $_[0]->kr_queue->get_item_count();
 }
 
 # FIXME - Should this exist?
 sub get_next_event_time {
-  return $kr_queue->get_next_priority();
+  return $_[0]->kr_queue->get_next_priority();
 }
 
 #==============================================================================
@@ -1764,7 +1778,7 @@ sub alarm {
   }
   else {
     # The event queue has become empty?  Stop the time watcher.
-    $self->loop_pause_time_watcher() unless $kr_queue->get_item_count();
+    $self->loop_pause_time_watcher() unless $self->kr_queue->get_item_count();
   }
 
   return 0;
@@ -1954,7 +1968,7 @@ sub alarm_adjust {
   my $my_alarm = sub {
     $_[0]->[POE::Resource::Events->EV_SESSION] == $kr_active_session;
   };
-  return $kr_queue->adjust_priority($alarm_id, $my_alarm, $delta);
+  return $self->kr_queue->adjust_priority($alarm_id, $my_alarm, $delta);
 }
 
 # A convenient function for setting alarms relative to now.  It also
@@ -2031,7 +2045,7 @@ sub delay_adjust {
     _warn("<ev> adjusted event $alarm_id by $seconds seconds");
   }
 
-  return $kr_queue->set_priority($alarm_id, $my_delay, time() + $seconds);
+  return $self->kr_queue->set_priority($alarm_id, $my_delay, time() + $seconds);
 }
 
 # Remove all alarms for the current session.
