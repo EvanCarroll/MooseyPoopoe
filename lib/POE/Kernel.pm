@@ -24,35 +24,52 @@ with 'POE::Resource::Statistics';
 
 
 # People expect these to be lexical.
-
 our ($poe_kernel, $poe_main_window);
 $poe_kernel= undef;
-
-#------------------------------------------------------------------------------
-# A cheezy exporter to avoid using Exporter.
-
-my $queue_class;
-
-BEGIN {
-  eval {
-    require POE::XS::Queue::Array;
-    POE::XS::Queue::Array->import();
-    $queue_class = "POE::XS::Queue::Array";
-  };
-  unless ($queue_class) {
-    require POE::Queue::Array;
-    POE::Queue::Array->import();
-    $queue_class = "POE::Queue::Array";
-  }
-}
 
 has 'kr_queue' => (
 	isa  => 'Object'
 	, is => 'ro'
 	, lazy => 1
-	, default => sub { $queue_class->new }
+	, default => sub {
+		my $queue_class;
+		eval {
+			require POE::XS::Queue::Array;
+			POE::XS::Queue::Array->import();
+			$queue_class = "POE::XS::Queue::Array";
+		};
+		unless ($queue_class) {
+			require POE::Queue::Array;
+			POE::Queue::Array->import();
+			$queue_class = "POE::Queue::Array";
+		}
+		$queue_class->new
+	}
 );
 
+#==============================================================================
+# Kernel and Session IDs
+#==============================================================================
+
+# Return the Kernel's "unique" ID.  There's only so much uniqueness
+# available; machines on separate private 10/8 networks may have
+# identical kernel IDs.  The chances of a collision are vanishingly
+# small.
+
+# The Kernel and Session IDs are based on Philip Gwyn's code.  I hope
+# he still can recognize it.
+
+has 'ID' => (
+	isa  => 'Str'
+	, is => 'ro'
+	, clearer => '_clear_ID'
+	, default => sub {
+		my $self = shift;
+		my $hostname = eval { (uname)[1] };
+		$hostname = hostname() unless defined $hostname;
+		return "$hostname-" .  unpack('H*', pack('N*', time(), $$));
+	}
+);
 
 sub import {
   my ($class, $args) = @_;
@@ -791,8 +808,8 @@ sub BUILD {
       undef,               # KR_SIGNALS - from POE::Resource::Signals
       undef,               # KR_ALIASES - from POE::Resource::Aliases
       \$kr_active_session, # KR_ACTIVE_SESSION
-      $self->kr_queue,           # KR_QUEUE - reference to an object
-      undef,               # KR_ID
+      $self->kr_queue,     # KR_QUEUE - reference to an object
+      $self->ID,           # KR_ID
       undef,               # KR_SESSION_IDS - from POE::Resource::SIDS
       undef,               # KR_SID_SEQ - scalar ref from POE::Resource::SIDS
       undef,               # KR_EXTRA_REFS
@@ -815,7 +832,7 @@ sub BUILD {
 		}
 
 	}
-    $self->_data_sid_set($self->ID(), $self);
+    $self->_data_sid_set($self->ID, $self);
     
 		# Initialize subsystems.  The order is important.
 
@@ -1208,7 +1225,7 @@ sub _initialize_kernel_session {
 
   $kr_exception = undef;
   $kr_active_session = $self;
-  $self->_data_ses_allocate($self, $self->ID(), undef);
+  $self->_data_ses_allocate($self, $self->ID, undef);
 }
 
 # Do post-run cleanup.
@@ -1306,9 +1323,7 @@ sub stop {
   # So new sessions will not be child of the current defunct session.
   $kr_active_session = $self;
 
-  # Undefined the kernel ID so it will be recalculated on the next
-  # ID() call.
-  $poe_kernel->[KR_ID] = undef;
+  $self->_clear_ID;
 
   return;
 }
@@ -2355,31 +2370,6 @@ sub alias_list {
   # Return whatever can be found.
   my @alias_list = $self->_data_alias_list($session);
   return wantarray() ? @alias_list : $alias_list[0];
-}
-
-#==============================================================================
-# Kernel and Session IDs
-#==============================================================================
-
-# Return the Kernel's "unique" ID.  There's only so much uniqueness
-# available; machines on separate private 10/8 networks may have
-# identical kernel IDs.  The chances of a collision are vanishingly
-# small.
-
-# The Kernel and Session IDs are based on Philip Gwyn's code.  I hope
-# he still can recognize it.
-
-sub ID {
-  my $self = shift;
-
-  # Recalculate the kernel ID if necessary.  stop() undefines it.
-  unless (defined $poe_kernel->[KR_ID]) {
-    my $hostname = eval { (uname)[1] };
-    $hostname = hostname() unless defined $hostname;
-    $poe_kernel->[KR_ID] = $hostname . '-' .  unpack('H*', pack('N*', time(), $$));
-  }
-
-  return $poe_kernel->[KR_ID];
 }
 
 # Resolve an ID to a session reference.  This function is virtually
