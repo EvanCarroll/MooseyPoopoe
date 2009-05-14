@@ -171,9 +171,6 @@ my $kr_active_event;
 # POE::Resource::Events to trigger the exception there?
 use vars qw($kr_exception);
 
-# The Kernel's master queue.
-my $kr_queue;
-
 # Filehandle activity modes.  They are often used as list indexes.
 sub MODE_RD () { 0 }  # read
 sub MODE_WR () { 1 }  # write
@@ -611,7 +608,7 @@ sub _test_if_kernel_is_idle {
   if (TRACE_REFCNT) {
     _warn(
       "<rc> ,----- Kernel Activity -----\n",
-      "<rc> | Events : ", $kr_queue->get_item_count(), "\n",
+      "<rc> | Events : ", $self->kr_queue->get_item_count(), "\n",
       "<rc> | Files  : ", $self->_data_handle_count(), "\n",
       "<rc> | Extra  : ", $self->_data_extref_count(), "\n",
       "<rc> | Procs  : ", $self->_data_sig_child_procs(), "\n",
@@ -621,7 +618,7 @@ sub _test_if_kernel_is_idle {
   }
 
   unless (
-    $kr_queue->get_item_count() > $idle_queue_size or
+    $self->kr_queue->get_item_count() > $idle_queue_size or
     $self->_data_handle_count() or
     $self->_data_extref_count() or
     $self->_data_sig_child_procs()
@@ -782,9 +779,6 @@ sub BUILD {
 	my $self = shift;
   
 	unless (defined $POE::Kernel::poe_kernel) {
-
-    # Create our master queue.
-    $kr_queue = $queue_class->new();
 
     # TODO - Should KR_ACTIVE_SESSIONS and KR_ACTIVE_EVENT be handled
     # by POE::Resource::Sessions?
