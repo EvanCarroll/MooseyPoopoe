@@ -14,7 +14,7 @@ has 'kr_sessions' => (
 		### this for sessions provided by the outside.  Internally, our code
 		### should be so clean it's not necessary.
 		'exists' => '_data_ses_exists'
-		, count => '_data_ses_count'
+		, count  => '_data_ses_count'
 	}
 );
 
@@ -26,8 +26,6 @@ use constant {
 	, SS_PROCESSES  => 4
 	, SS_ID         => 5
 };
-
-### End-run leak checking.
 
 sub _data_ses_finalize {
 	my $kr_sessions = $_[0]->kr_sessions;
@@ -508,6 +506,7 @@ sub _data_ses_stop {
 
   delete $already_stopping{$session};
 }
+
 
 1;
 
