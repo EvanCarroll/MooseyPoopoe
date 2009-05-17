@@ -2,11 +2,8 @@ package POE::Resource::SIDs;
 use Moose::Role;
 use strict;
 
-package POE::Kernel;
-
 ### Map session IDs to sessions.  Map sessions to session IDs.
 ### Maintain a sequence number for determining the next session ID.
-
 my %kr_session_ids;
 #  ( $session_id => $session_reference,
 #    ...,
@@ -38,7 +35,6 @@ sub _data_sid_initialize {
 }
 
 ### End-run leak checking.
-
 sub _data_sid_finalize {
   my $finalized_ok = 1;
   while (my ($sid, $ses) = each(%kr_session_ids)) {
@@ -53,7 +49,6 @@ sub _data_sid_finalize {
 }
 
 ### Set a session ID.
-
 sub _data_sid_set {
   my ($self, $sid, $session) = @_;
   $kr_session_ids{$sid} = $session;
@@ -61,7 +56,6 @@ sub _data_sid_set {
 }
 
 ### Clear a session ID.
-
 sub _data_sid_clear {
   my ($self, $session) = @_;
   my $sid = delete $kr_session_to_id{$session};
@@ -72,7 +66,6 @@ sub _data_sid_clear {
 }
 
 ### Resolve a session ID into its session.
-
 sub _data_sid_resolve {
   my ($self, $sid) = @_;
   return $kr_session_ids{$sid};
