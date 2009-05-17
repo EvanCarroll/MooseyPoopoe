@@ -234,7 +234,7 @@ sub _data_ev_dispatch_due {
     foreach ($self->kr_queue->peek_items(sub { 1 })) {
       my @event = map { defined() ? $_ : "(undef)" } @{$_->[POE::Queue::Array::ITEM_PAYLOAD()]};
       POE::Kernel::_warn(
-        "<ev> time($_->[POE::Queue::Array::ITEM_PRIORITY()]) id($_->[POE::Queue::Array::ITEM_ID]) ",
+        "<ev> time($_->[POE::Queue::Array::ITEM_PRIORITY()]) id($_->[POE::Queue::Array::ITEM_ID()]) ",
         "event(@event)\n"
       );
     }
