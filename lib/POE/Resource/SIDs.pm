@@ -17,11 +17,24 @@ my %kr_session_to_id;
 #    ...,
 #  );
 
-my $kr_sid_seq = 1;
+##  has [qw/kr_session_ids kr_session_to_id/] => (
+##  	isa => 'HashRef'
+##  	, is => 'ro'
+##  	, default => sub { +{} }
+##  )
+
+has 'kr_sid_seq' => (
+	isa => 'Int'
+	, is => 'rw'
+	, default => 1
+	, metaclass => 'Counter'
+	, provides => {
+		inc => '_data_sid_allocate'
+	}
+);
 
 sub _data_sid_initialize {
   $POE::Kernel::poe_kernel->[POE::Kernel::KR_SESSION_IDS] = \%kr_session_ids;
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_SID_SEQ] = \$kr_sid_seq;
 }
 
 ### End-run leak checking.
@@ -37,14 +50,6 @@ sub _data_sid_finalize {
     $finalized_ok = 0;
   }
   return $finalized_ok;
-}
-
-### Allocate a new session ID.
-
-sub _data_sid_allocate {
-  my $self = shift;
-  1 while exists $kr_session_ids{++$kr_sid_seq};
-  return $kr_sid_seq;
 }
 
 ### Set a session ID.

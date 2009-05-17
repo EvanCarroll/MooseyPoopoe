@@ -11,6 +11,7 @@ use Carp qw(carp croak confess cluck);
 use Sys::Hostname qw(hostname);
 use IO::Handle ();
 use File::Spec ();
+use Scalar::Util ();
 		
 
 with 'POE::Resource::Aliases';
@@ -47,27 +48,18 @@ has 'kr_queue' => (
 	}
 );
 
-#==============================================================================
-# Kernel and Session IDs
-#==============================================================================
-
 # Return the Kernel's "unique" ID.  There's only so much uniqueness
 # available; machines on separate private 10/8 networks may have
 # identical kernel IDs.  The chances of a collision are vanishingly
-# small.
-
-# The Kernel and Session IDs are based on Philip Gwyn's code.  I hope
-# he still can recognize it.
-
+# small. The Kernel and Session IDs are based on Philip Gwyn's code.
 has 'ID' => (
 	isa  => 'Str'
 	, is => 'ro'
 	, clearer => '_clear_ID'
 	, default => sub {
-		my $self = shift;
 		my $hostname = eval { (uname)[1] };
 		$hostname = hostname() unless defined $hostname;
-		return "$hostname-" .  unpack('H*', pack('N*', time(), $$));
+		return ( "$hostname-" .  unpack('H*', pack('N*', time(), $$)) );
 	}
 );
 
@@ -199,7 +191,6 @@ sub MODE_EX () { 2 }  # exception/expedite
 # data that POE keeps track of.  The exceptions to this are private
 # storage in some of the leaf objects, such as POE::Wheel.  All its
 # members are described in detail further on.
-
 sub KR_SESSIONS       () {  0 } # [ \%kr_sessions,
 sub KR_FILENOS        () {  1 } #   \%kr_filenos,
 sub KR_SIGNALS        () {  2 } #   \%kr_signals,
@@ -218,7 +209,6 @@ sub KR_PIDS           () { 13 } #   \%kr_pids_to_events
 
 # This flag indicates that POE::Kernel's run() method was called.
 # It's used to warn about forgetting $poe_kernel->run().
-
 sub KR_RUN_CALLED  () { 0x01 }  # $kernel->run() called
 sub KR_RUN_SESSION () { 0x02 }  # sessions created
 sub KR_RUN_DONE    () { 0x04 }  # run returned
@@ -226,7 +216,6 @@ my $kr_run_warning = 0;
 
 # These are the names of POE's internal events.  They're in constants
 # so we don't mistype them again.
-
 sub EN_CHILD  () { '_child'           }
 sub EN_GC     () { '_garbage_collect' }
 sub EN_PARENT () { '_parent'          }
@@ -803,7 +792,7 @@ sub BUILD {
     # objects, such as KR_QUEUE is?
 
     $POE::Kernel::poe_kernel = bless [
-      undef,               # KR_SESSIONS - from POE::Resource::Sessions
+      $self->kr_sessions,  # KR_SESSIONS - from POE::Resource::Sessions
       undef,               # KR_FILENOS - from POE::Resource::FileHandles
       undef,               # KR_SIGNALS - from POE::Resource::Signals
       undef,               # KR_ALIASES - from POE::Resource::Aliases
@@ -811,7 +800,7 @@ sub BUILD {
       $self->kr_queue,     # KR_QUEUE - reference to an object
       $self->ID,           # KR_ID
       undef,               # KR_SESSION_IDS - from POE::Resource::SIDS
-      undef,               # KR_SID_SEQ - scalar ref from POE::Resource::SIDS
+      $self->kr_sid_seq,   # KR_SID_SEQ - scalar ref from POE::Resource::SIDS
       undef,               # KR_EXTRA_REFS
       undef,               # KR_SIZE
       \$kr_run_warning,    # KR_RUN
@@ -820,14 +809,17 @@ sub BUILD {
 		#use XXX; YYY "Address to POE_KERNEL $poe_kernel";
 		
 		foreach my $method ( $poe_kernel->meta->get_method_list ) {
-			next unless $method =~ /^[a-z]/; #skip constants
+			# SKIP constants (XXX FUCKING BITCH $self->ID() IS NOT A CONSTANT)
+			next unless $method =~ /^[_a-z]|^ID/;
 			next if $method eq 'run' or $method eq 'meta' or $method eq 'singleton';
 			around ( $method => sub {
 				my ( $sub, $self, @args ) = @_;
-				if ( Scalar::Util::reftype( $self ) eq 'ARRAY' ) {
+				my $reftype = Scalar::Util::reftype( $self );
+				if ( defined $reftype && $reftype eq 'ARRAY' ) {
 					$self = __PACKAGE__->instance;
 				}
-				$sub->( $self, @args );
+				#printf ( "\n%30s%10s\n\n\n\n\n", $method, Scalar::Util::reftype( $self ) );
+				$self->$sub( @args );
 			} );
 		}
 
@@ -1416,7 +1408,6 @@ sub session_alloc {
       );
     }
   }
-
 
   # Register that a session was created.
   $kr_run_warning |= KR_RUN_SESSION;
