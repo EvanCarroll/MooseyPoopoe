@@ -24,45 +24,46 @@ POE::Kernel->run();
 # Session resolution.
 
 eval { $poe_kernel->signal(moo => "signal") };
-ok(
-  $@ && $@ =~ /Cannot resolve ``moo'' into a session reference/,
+like(
+  $@ , qr/Cannot resolve ``moo'' into a session reference/,
   "unresolvable session in signal"
 );
 
 eval { $poe_kernel->detach_child("moo") };
-ok(
-  $@ && $@ =~ /Cannot resolve ``moo'' into a session reference/,
+like(
+  $@ , qr/Cannot resolve ``moo'' into a session reference/,
   "unresolvable session in detach_child"
 );
 
 eval { $poe_kernel->post(moo => "bar") };
-ok(
-  $@ && $@ =~ /Cannot resolve ``moo'' into a session reference/,
+like(
+  $@ , qr/Cannot resolve ``moo'' into a session reference/,
   "unresolvable session in post"
 );
 
 eval { $poe_kernel->call(moo => "bar") };
-ok(
-  $@ && $@ =~ /Cannot resolve ``moo'' into a session reference/,
+like(
+  $@ , qr/Cannot resolve ``moo'' into a session reference/,
   "unresolvable session in call"
 );
 
-# Double session allocation.
+my $real_self = POE::Kernel->instance;
 
-eval { $poe_kernel->session_alloc($poe_kernel) };
-ok(
-  $@ && $@ =~ /session .*? already exists/,
-  "double session_alloc"
+eval { $poe_kernel->session_alloc($real_self) };
+like(
+	$@ , qr/session .*? already exists/,
+	"double session_alloc"
 );
 
 # Free POE::Kernel to catch some bizarre errors.  Requires us to force
 # POE::Kernel's instance to go away.
-
-$poe_kernel->_data_ses_free($poe_kernel);
-eval { $poe_kernel->alarm_remove_all() };
-ok(
-  $@ && $@ =~ /unknown session in alarm_remove_all call/,
+eval {
+	$poe_kernel->_data_ses_free($real_self);
+	$poe_kernel->alarm_remove_all()
+};
+like(
+  $@ , qr/unknown session in alarm_remove_all call/,
   "removing alarms from unknown session"
 );
 
-exit 0;
+1;
