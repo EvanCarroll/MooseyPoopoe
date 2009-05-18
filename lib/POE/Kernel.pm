@@ -24,10 +24,15 @@ with 'POE::Resource::SIDs';
 with 'POE::Resource::Signals';
 with 'POE::Resource::Statistics';
 
-
 # People expect these to be lexical.
 our ($poe_kernel, $poe_main_window);
 $poe_kernel= undef;
+
+
+## ORDER SPECIFIC DO NOT FUCK WITH THIS 
+BEGIN{ $ENV{ TRACE_FILENAME } = TRACE_FILENAME() if defined &TRACE_FILENAME }
+use POE::Helpers::Error qw(:all);
+## END ORDER SPECIFICNESS
 
 has 'kr_queue' => (
 	isa  => 'Object'
@@ -282,20 +287,8 @@ BEGIN {
     *$const = sub () { $value };
   }
 
-  # TRACE_FILENAME is special.
-  {
-    no strict 'refs';
-    my $trace_filename = TRACE_FILENAME() if defined &TRACE_FILENAME;
-    if (defined $trace_filename) {
-      open TRACE_FILE, ">$trace_filename"
-        or die "can't open trace file `$trace_filename': $!";
-      CORE::select((CORE::select(TRACE_FILE), $| = 1)[0]);
-    }
-    else {
-      *TRACE_FILE = *STDERR;
-    }
-  }
-  # TRACE_DEFAULT changes the default value for other TRACE_*
+  
+	# TRACE_DEFAULT changes the default value for other TRACE_*
   # constants.  Since define_trace() uses TRACE_DEFAULT internally, it
   # can't be used to define TRACE_DEFAULT itself.
 
@@ -324,115 +317,6 @@ my $idle_queue_size = TRACE_STATISTICS ? 1 : 0;
 sub _idle_queue_grow   { $idle_queue_size++; }
 sub _idle_queue_shrink { $idle_queue_size--; }
 sub _idle_queue_size   { $idle_queue_size;   }
-
-#------------------------------------------------------------------------------
-# Helpers to carp, croak, confess, cluck, warn and die with whatever
-# trace file we're using today.  _trap is reserved for internal
-# errors.
-
-{
-  # This block abstracts away a particular piece of voodoo, since we're about
-  # to call it many times. This is all a big closure around the following two
-  # variables, allowing us to swap out and replace handlers without the need
-  # for mucking up the namespace or the kernel itself.
-  my ($orig_warn_handler, $orig_die_handler);
-
-  # _trap_death replaces the current __WARN__ and __DIE__ handlers
-  # with our own.  We keep the defaults around so we can put them back
-  # when we're done.  Specifically this is necessary, it seems, for
-  # older perls that don't respect the C<local *STDERR = *TRACE_FILE>.
-  #
-  # TODO - The __DIE__ handler generates a double message if
-  # TRACE_FILE is STDERR and the die isn't caught by eval.  That's
-  # messy and needs to go.
-  sub _trap_death {
-    $orig_warn_handler = $SIG{__WARN__};
-    $orig_die_handler = $SIG{__DIE__};
-
-    $SIG{__WARN__} = sub { print TRACE_FILE $_[0] };
-    $SIG{__DIE__} = sub { print TRACE_FILE $_[0]; die $_[0]; };
-  }
-
-  # _release_death puts the original __WARN__ and __DIE__ handlers back in
-  # place. Hopefully this is zero-impact camping. The hope is that we can
-  # do our trace magic without impacting anyone else.
-  sub _release_death {
-    $SIG{__WARN__} = $orig_warn_handler;
-    $SIG{__DIE__} = $orig_die_handler;
-  }
-}
-
-sub _trap {
-  local $Carp::CarpLevel = $Carp::CarpLevel + 1;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  confess(
-    "-----\n",
-    "Please address any warnings or errors above this message, and try\n",
-    "again.  If there are none, or those messages are from within POE,\n",
-    "then please mail them along with the following information\n",
-    "to bug-POE\@rt.cpan.org:\n---\n@_\n-----\n"
-  );
-  _release_death();
-}
-
-sub _croak {
-  local $Carp::CarpLevel = $Carp::CarpLevel + 1;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  croak @_;
-  _release_death();
-}
-
-sub _confess {
-  local $Carp::CarpLevel = $Carp::CarpLevel + 1;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  confess @_;
-  _release_death();
-}
-
-sub _cluck {
-  local $Carp::CarpLevel = $Carp::CarpLevel + 1;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  cluck @_;
-  _release_death();
-}
-
-sub _carp {
-  local $Carp::CarpLevel = $Carp::CarpLevel + 1;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  carp @_;
-  _release_death();
-}
-
-sub _warn {
-  my ($package, $file, $line) = caller();
-  my $message = join("", @_);
-  $message .= " at $file line $line\n" unless $message =~ /\n$/;
-
-  _trap_death();
-  warn $message;
-  _release_death();
-}
-
-sub _die {
-  my ($package, $file, $line) = caller();
-  my $message = join("", @_);
-  $message .= " at $file line $line\n" unless $message =~ /\n$/;
-  local *STDERR = *TRACE_FILE;
-
-  _trap_death();
-  die $message;
-  _release_death();
-}
 
 #------------------------------------------------------------------------------
 # Adapt POE::Kernel's personality to whichever event loop is present.
