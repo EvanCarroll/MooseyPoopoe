@@ -174,6 +174,7 @@ BEGIN {
 # functions that act on the current session.
 my $kr_active_session;
 my $kr_active_event;
+my $kr_run_warning = 0;
 
 # Needs to be lexical so that POE::Resource::Events can see it
 # change.  TODO - Something better?  Maybe we call a method in
@@ -181,9 +182,11 @@ my $kr_active_event;
 use vars qw($kr_exception);
 
 # Filehandle activity modes.  They are often used as list indexes.
-sub MODE_RD () { 0 }  # read
-sub MODE_WR () { 1 }  # write
-sub MODE_EX () { 2 }  # exception/expedite
+use constant {
+	MODE_RD   => 0 # read
+	, MODE_WR => 1 # write
+	, MODE_EX => 2 # exception/expedite
+};
 
 #------------------------------------------------------------------------------
 # Kernel structure.  This is the root of a large data tree.  Dumping
@@ -191,59 +194,64 @@ sub MODE_EX () { 2 }  # exception/expedite
 # data that POE keeps track of.  The exceptions to this are private
 # storage in some of the leaf objects, such as POE::Wheel.  All its
 # members are described in detail further on.
-sub KR_SESSIONS       () {  0 } # [ \%kr_sessions,
-sub KR_FILENOS        () {  1 } #   \%kr_filenos,
-sub KR_SIGNALS        () {  2 } #   \%kr_signals,
-sub KR_ALIASES        () {  3 } #   \%kr_aliases,
-sub KR_ACTIVE_SESSION () {  4 } #   \$kr_active_session,
-sub KR_QUEUE          () {  5 } #   \$kr_queue,
-sub KR_ID             () {  6 } #   $unique_kernel_id,
-sub KR_SESSION_IDS    () {  7 } #   \%kr_session_ids,
-sub KR_SID_SEQ        () {  8 } #   \$kr_sid_seq,
-sub KR_EXTRA_REFS     () {  9 } #   \$kr_extra_refs,
-sub KR_SIZE           () { 10 } #   XXX UNUSED ???
-sub KR_RUN            () { 11 } #   \$kr_run_warning
-sub KR_ACTIVE_EVENT   () { 12 } #   \$kr_active_event
-sub KR_PIDS           () { 13 } #   \%kr_pids_to_events
-                                # ]
+use constant {
+ KR_SESSIONS         =>  0 #   \%kr_sessions,
+ , KR_FILENOS        =>  1 #   \%kr_filenos,
+ , KR_SIGNALS        =>  2 #   \%kr_signals,
+ , KR_ALIASES        =>  3 #   \%kr_aliases,
+ , KR_ACTIVE_SESSION =>  4 #   \$kr_active_session,
+ , KR_QUEUE          =>  5 #   \$kr_queue,
+ , KR_ID             =>  6 #   $unique_kernel_id,
+ , KR_SESSION_IDS    =>  7 #   \%kr_session_ids,
+ , KR_SID_SEQ        =>  8 #   \$kr_sid_seq,
+ , KR_EXTRA_REFS     =>  9 #   \$kr_extra_refs,
+ , KR_SIZE           => 10 #   XXX UNUSED ???
+ , KR_RUN            => 11 #   \$kr_run_warning
+ , KR_ACTIVE_EVENT   => 12 #   \$kr_active_event
+ , KR_PIDS           => 13 #   \%kr_pids_to_events
+};
 
 # This flag indicates that POE::Kernel's run() method was called.
 # It's used to warn about forgetting $poe_kernel->run().
-sub KR_RUN_CALLED  () { 0x01 }  # $kernel->run() called
-sub KR_RUN_SESSION () { 0x02 }  # sessions created
-sub KR_RUN_DONE    () { 0x04 }  # run returned
-my $kr_run_warning = 0;
+use constant {
+	KR_RUN_CALLED    => 0x01 # $kernel->run() called
+	, KR_RUN_SESSION => 0x02 # sessions created
+	, KR_RUN_DONE    => 0x04 # run returned
+};
 
 # These are the names of POE's internal events.  They're in constants
 # so we don't mistype them again.
-sub EN_CHILD  () { '_child'           }
-sub EN_GC     () { '_garbage_collect' }
-sub EN_PARENT () { '_parent'          }
-sub EN_SCPOLL () { '_sigchld_poll'    }
-sub EN_SIGNAL () { '_signal'          }
-sub EN_START  () { '_start'           }
-sub EN_STAT   () { '_stat_tick'       }
-sub EN_STOP   () { '_stop'            }
+use constant {
+	EN_CHILD    => '_child'           
+	, EN_GC     => '_garbage_collect' 
+	, EN_PARENT => '_parent'          
+	, EN_SCPOLL => '_sigchld_poll'    
+	, EN_SIGNAL => '_signal'          
+	, EN_START  => '_start'           
+	, EN_STAT   => '_stat_tick'       
+	, EN_STOP   => '_stop'            
+};
 
 # These are POE's event classes (types).  They often shadow the event
 # names themselves, but they can encompass a large group of events.
 # For example, ET_ALARM describes anything enqueued as by an alarm
 # call.  Types are preferred over names because bitmask tests are
 # faster than string equality tests.
-
-sub ET_POST   () { 0x0001 }  # User events (posted, yielded).
-sub ET_CALL   () { 0x0002 }  # User events that weren't enqueued.
-sub ET_START  () { 0x0004 }  # _start
-sub ET_STOP   () { 0x0008 }  # _stop
-sub ET_SIGNAL () { 0x0010 }  # _signal
-sub ET_GC     () { 0x0020 }  # _garbage_collect
-sub ET_PARENT () { 0x0040 }  # _parent
-sub ET_CHILD  () { 0x0080 }  # _child
-sub ET_SCPOLL () { 0x0100 }  # _sigchild_poll
-sub ET_ALARM  () { 0x0200 }  # Alarm events.
-sub ET_SELECT () { 0x0400 }  # File activity events.
-sub ET_STAT   () { 0x0800 }  # Statistics gathering
-sub ET_SIGCLD () { 0x1000 }  # sig_child() events.
+use constant {
+	ET_POST     => 0x0001  # User events (posted, yielded).
+	, ET_CALL   => 0x0002  # User events that weren't enqueued.
+	, ET_START  => 0x0004  # _start
+	, ET_STOP   => 0x0008  # _stop
+	, ET_SIGNAL => 0x0010  # _signal
+	, ET_GC     => 0x0020  # _garbage_collect
+	, ET_PARENT => 0x0040  # _parent
+	, ET_CHILD  => 0x0080  # _child
+	, ET_SCPOLL => 0x0100  # _sigchild_poll
+	, ET_ALARM  => 0x0200  # Alarm events.
+	, ET_SELECT => 0x0400  # File activity events.
+	, ET_STAT   => 0x0800  # Statistics gathering
+	, ET_SIGCLD => 0x1000  # sig_child() events.
+};
 
 # A mask for all events generated by/for users.
 sub ET_MASK_USER () { ~(ET_GC | ET_SCPOLL | ET_STAT) }
@@ -272,9 +280,11 @@ my %poes_own_events = (
 # indicate that the child has stopped, and one to indicate that it was
 # given away.
 
-sub CHILD_GAIN   () { 'gain'   }  # The session was inherited from another.
-sub CHILD_LOSE   () { 'lose'   }  # The session is no longer this one's child.
-sub CHILD_CREATE () { 'create' }  # The session was created as a child of this.
+use constant {
+	CHILD_GAIN     => 'gain'   # The session was inherited from another.
+	, CHILD_LOSE   => 'lose'   # The session is no longer this one's child.
+	, CHILD_CREATE => 'create' # The session was created as a child of this.
+};
 
 #------------------------------------------------------------------------------
 # Debugging and configuration constants.
