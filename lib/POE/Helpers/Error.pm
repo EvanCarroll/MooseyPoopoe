@@ -4,13 +4,13 @@ use Carp qw();
 use Sub::Exporter -setup => {
 	exports => [qw/
 		_trap_death _release_death _trap
-		_confess _carp _croak
+		_confess _carp _croak _cluck
 		_warn _die
 	/]
 	, groups => {
 		Perl => [qw/_warn _die/]
+		, Carp => [qw/_confess _carp _croak _cluck/]
 		, LogCapture => [qw/_trap_death _release_death/]
-		, Carp    => [qw/_confess _carp _croak/]
 	}
 };
 
@@ -83,7 +83,7 @@ sub _croak {
 	local *STDERR = *TRACE_FILE;
 
 	_trap_death();
-	Carp::croak @_;
+	Carp::croak(@_);
 	_release_death();
 }
 
@@ -92,7 +92,7 @@ sub _confess {
 	local *STDERR = *TRACE_FILE;
 
 	_trap_death();
-	Carp::confess @_;
+	Carp::confess(@_);
 	_release_death();
 }
 
@@ -101,7 +101,7 @@ sub _cluck {
 	local *STDERR = *TRACE_FILE;
 
 	_trap_death();
-	Carp::cluck @_;
+	Carp::cluck(@_);
 	_release_death();
 }
 
@@ -110,7 +110,7 @@ sub _carp {
 	local *STDERR = *TRACE_FILE;
 
 	_trap_death();
-	Carp::carp @_;
+	Carp::carp(@_);
 	_release_death();
 }
 
@@ -120,7 +120,7 @@ sub _warn {
 	$message .= " at $file line $line\n" unless $message =~ /\n$/;
 
 	_trap_death();
-	CORE::warn $message;
+	warn $message;
 	_release_death();
 }
 
@@ -131,7 +131,7 @@ sub _die {
 	local *STDERR = *TRACE_FILE;
 
 	_trap_death();
-	CORE::die $message;
+	die $message;
 	_release_death();
 }
 
