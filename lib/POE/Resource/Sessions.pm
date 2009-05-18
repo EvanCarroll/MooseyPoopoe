@@ -2,6 +2,7 @@ package POE::Resource::Sessions;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Constants qw( :events :child );
 use MooseX::AttributeHelpers;
 
 has 'kr_sessions' => (
@@ -460,12 +461,12 @@ sub _data_ses_stop {
   foreach my $child ($self->_data_ses_get_children($session)) {
     $self->_dispatch_event(
       $parent, $self,
-      POE::Kernel::EN_CHILD, POE::Kernel::ET_CHILD, [ POE::Kernel::CHILD_GAIN, $child ],
+      EN_CHILD, ET_CHILD, [ CHILD_GAIN, $child ],
       __FILE__, __LINE__, undef, time(), -__LINE__
     );
     $self->_dispatch_event(
       $child, $self,
-      POE::Kernel::EN_PARENT, POE::Kernel::ET_PARENT,
+      EN_PARENT, ET_PARENT,
       [ $self->_data_ses_get_parent($child), $parent, ],
       __FILE__, __LINE__, undef, time(), -__LINE__
     );
@@ -475,7 +476,7 @@ sub _data_ses_stop {
   # that it has been stopped.
   my $stop_return = $self->_dispatch_event(
     $session, $self->get_active_session(),
-    POE::Kernel::EN_STOP, POE::Kernel::ET_STOP, [],
+    EN_STOP, ET_STOP, [],
     __FILE__, __LINE__, undef, time(), -__LINE__
   );
 
@@ -485,7 +486,7 @@ sub _data_ses_stop {
   if (defined $parent) {
     $self->_dispatch_event(
       $parent, $self,
-      POE::Kernel::EN_CHILD, POE::Kernel::ET_CHILD, [ POE::Kernel::CHILD_LOSE, $session, $stop_return ],
+      EN_CHILD, ET_CHILD, [ CHILD_LOSE, $session, $stop_return ],
       __FILE__, __LINE__, undef, time(), -__LINE__
     );
   }
