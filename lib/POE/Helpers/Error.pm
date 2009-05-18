@@ -10,7 +10,7 @@ use Sub::Exporter -setup => {
 	, groups => {
 		Perl => [qw/_warn _die/]
 		, LogCapture => [qw/_trap_death _release_death/]
-		, Confess    => [qw/_confess _carp _croak/]
+		, Carp    => [qw/_confess _carp _croak/]
 	}
 };
 
