@@ -5,7 +5,6 @@ use XXX;
 
 use strict;
 
-use POE::Helpers::Constants qw( :all );
 
 use POSIX qw(uname);
 use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
@@ -32,7 +31,43 @@ $poe_kernel= undef;
 ## ORDER SPECIFIC DO NOT FUCK WITH THIS 
 BEGIN{ $ENV{ TRACE_FILENAME } = TRACE_FILENAME() if defined &TRACE_FILENAME }
 use POE::Helpers::Error qw(:all);
-## END ORDER SPECIFICNESS
+
+BEGIN {
+  # Shorthand for defining an assert constant.
+	sub _define_assert {
+		no strict 'refs';
+		no warnings;
+		foreach my $name (@_) {
+			#next if defined $ENV{"POE_ASSERT_$name"};
+			if ( defined *{"ASSERT_$name"}{CODE} ) {
+				$ENV{ "POE_ASSERT_$name" } = &{ *{"ASSERT_$name"}{CODE} };
+				undef *{"ASSERT_$name"};
+			}
+		}
+	}
+	# Shorthand for defining a trace constant.
+	sub _define_trace {
+		no strict 'refs';
+		no warnings;
+		foreach my $name (@_) {
+			#next if defined $ENV{"POE_TRACE_$name"};
+			if ( defined *{"TRACE_$name"}{CODE} ) {
+				$ENV{ "POE_TRACE_$name" } = &{ *{"TRACE_$name"}{CODE} };
+				undef *{"TRACE_$name"};
+			}
+		}
+	}
+
+	## DESTROY not originally in kernel, from session.pm
+  _define_trace(qw(
+		DEFAULT EVENTS FILES PROFILE REFCNT RETVALS SESSIONS SIGNALS STATISTICS DESTROY
+  ));
+	## STATES not originally in kernel, from session.pm
+  _define_assert(qw(
+		DEFAULT DATA EVENTS FILES RETVALS USAGE STATES
+	));
+}
+use POE::Helpers::Constants qw( :all );
 
 has 'kr_queue' => (
 	isa  => 'Object'
@@ -236,76 +271,6 @@ my %poes_own_events = (
   +EN_STAT   => 1,
 );
 
-#------------------------------------------------------------------------------
-# Debugging and configuration constants.
-
-# Shorthand for defining a trace constant.
-sub _define_trace {
-  no strict 'refs';
-  foreach my $name (@_) {
-    next if defined *{"TRACE_$name"}{CODE};
-    my $trace_value = &TRACE_DEFAULT;
-    my $trace_name  = "TRACE_$name";
-    *$trace_name = sub () { $trace_value };
-  }
-}
-
-# Debugging flags for subsystems.  They're done as double evals here
-# so that someone may define them before using POE::Kernel (or POE),
-# and the pre-defined value will take precedence over the defaults
-# here.
-
-BEGIN {
-  # Shorthand for defining an assert constant.
-  sub _define_assert {
-    no strict 'refs';
-    foreach my $name (@_) {
-      next if defined *{"ASSERT_$name"}{CODE};
-      my $assert_value = &ASSERT_DEFAULT;
-      my $assert_name  = "ASSERT_$name";
-      *$assert_name = sub () { $assert_value };
-    }
-  }
-
-  # Assimilate POE_TRACE_* and POE_ASSERT_* environment variables.
-  # Environment variables override everything else.
-  while (my ($var, $val) = each %ENV) {
-    next unless $var =~ /^POE_([A-Z_]+)$/;
-
-    my $const = $1;
-
-    next unless $const =~ /^(?:TRACE|ASSERT)_/ or do { no strict 'refs'; defined &$const };
-
-    # Copy so we don't hurt our environment.
-    my $value = $val;
-    $value =~ tr['"][]d;
-    $value = 0 + $value if $value =~ /^\s*-?\d+(?:\.\d+)?\s*$/;
-
-    no strict 'refs';
-    local $^W = 0;
-    local $SIG{__WARN__} = sub { }; # redefine
-    *$const = sub () { $value };
-  }
-
-  
-	# TRACE_DEFAULT changes the default value for other TRACE_*
-  # constants.  Since define_trace() uses TRACE_DEFAULT internally, it
-  # can't be used to define TRACE_DEFAULT itself.
-
-  defined &TRACE_DEFAULT or *TRACE_DEFAULT = sub () { 0 };
-
-  _define_trace qw(
-    EVENTS FILES PROFILE REFCNT RETVALS SESSIONS SIGNALS STATISTICS
-  );
-
-  # See the notes for TRACE_DEFAULT, except read ASSERT and assert
-  # where you see TRACE and trace.
-
-  defined &ASSERT_DEFAULT or *ASSERT_DEFAULT = sub () { 0 };
-
-  _define_assert qw(DATA EVENTS FILES RETVALS USAGE);
-}
-
 # An "idle" POE::Kernel may still have events enqueued.  These events
 # regulate polling for signals, profiling, and perhaps other aspecs of
 # POE::Kernel's internal workings.
@@ -339,7 +304,7 @@ sub _load_loop {
   # something else.  This exception prevents the rest of the
   # originally used module from being parsed, so the module it's
   # handed off to takes over.
-  eval "require $loop";
+  with($loop);
   if ($@ and $@ !~ /not really dying/) {
     die(
       "*\n",
