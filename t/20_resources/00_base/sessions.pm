@@ -80,7 +80,7 @@ ok(
     "child is child of POE::Kernel"
   );
 
-  ok($poe_kernel->_data_ses_count() == 2, "two sessions now");
+  is($poe_kernel->_data_ses_count(), 2, "two sessions now");
 }
 
 # Try to free POE::Kernel while it has a child session.
