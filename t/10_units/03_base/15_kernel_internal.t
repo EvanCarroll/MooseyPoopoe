@@ -52,37 +52,37 @@ BEGIN { use_ok("POE::Kernel"); }
 {
   $last_exception = '';
   eval { POE::Kernel::_trap("testing _trap") };
-  ok($last_exception =~ /^die:/, "_trap confessed");
+  like($last_exception, qr/^die:/, "_trap confessed");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_croak("testing _croak") };
-  ok($last_exception =~ /^die:/, "_croak croaked");
+  like($last_exception, qr/^die:/, "_croak croaked");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_confess("testing _confess") };
-  ok($last_exception =~ /^die:/, "_confess confessed");
+  like($last_exception, qr/^die:/, "_confess confessed");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_cluck("testing _cluck") };
-  ok($last_exception =~ /^warn:/, "_cluck clucked");
+  like($last_exception, qr/^warn:/, "_cluck clucked");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_carp("testing _carp") };
-  ok($last_exception =~ /^warn:/, "_carp carped");
+  like($last_exception, qr/^warn:/, "_carp carped");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_warn("testing _warn") };
-  ok($last_exception =~ /^warn:/, "_warn warned");
+  like($last_exception, qr/^warn:/, "_warn warned");
 }
 {
   $last_exception = '';
   eval { POE::Kernel::_die("testing _die") };
-  ok($last_exception =~ /^die:/, "_die died");
+  like($last_exception, qr/^die:/, "_die died");
 }
 
 exit 0;
