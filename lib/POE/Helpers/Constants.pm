@@ -5,20 +5,27 @@ use Sub::Exporter -setup => {
 		MODE_RD MODE_WR MODE_EX
 
 		EN_CHILD EN_GC EN_PARENT EN_SCPOLL EN_SIGNAL
-		EN_START EN_STAT EN_STOP
+		EN_START EN_STAT EN_STOP EN_DEFAULT
 	
 		CHILD_GAIN CHILD_LOSE CHILD_CREATE
 
 		ET_POST  ET_CALL  ET_START  ET_STOP  ET_SIGNAL
 		ET_GC  ET_PARENT  ET_CHILD  ET_SCPOLL  ET_ALARM
 		ET_SELECT  ET_STAT  ET_SIGCLD  ET_MASK_USER
+
+
+		TRACE_DEFAULT TRACE_EVENTS TRACE_FILES TRACE_PROFILE TRACE_REFCNT
+		TRACE_RETVALS TRACE_SESSIONS TRACE_SIGNALS TRACE_STATISTICS TRACE_DESTROY
+
+		ASSERT_DEFAULT ASSERT_DATA ASSERT_EVENTS ASSERT_FILES ASSERT_RETVALS
+		ASSERT_USAGE ASSERT_STATES
 	) ]
 
 	, groups => {
 		filehandle => [qw( MODE_RD MODE_WR MODE_EX )]
 		, events   => [qw(
 			EN_CHILD EN_GC EN_PARENT EN_SCPOLL EN_SIGNAL
-			EN_START EN_STAT EN_STOP
+			EN_START EN_STAT EN_STOP EN_DEFAULT
 		
 			ET_POST  ET_CALL  ET_START  ET_STOP  ET_SIGNAL
 			ET_GC  ET_PARENT  ET_CHILD  ET_SCPOLL  ET_ALARM
@@ -26,6 +33,16 @@ use Sub::Exporter -setup => {
 		)]
 		, child    => [qw(
 			CHILD_GAIN CHILD_LOSE CHILD_CREATE
+		)]
+		, poe_trace => [qw(
+				POE_TRACE_EVENTS
+				POE_TRACE_FILES
+				POE_TRACE_PROFILE
+				POE_TRACE_REFCNT
+				POE_TRACE_RETVALS
+				POE_TRACE_SESSIONS
+				POE_TRACE_SIGNALS
+				POE_TRACE_STATISTICS
 		)]
 	}
 };
@@ -43,14 +60,15 @@ use constant {
 # These are the names of POE's internal events.
 # Used in Resources/Sessions
 use constant {
-	EN_CHILD    => '_child'
-	, EN_GC     => '_garbage_collect'
-	, EN_PARENT => '_parent'
-	, EN_SCPOLL => '_sigchld_poll'
-	, EN_SIGNAL => '_signal'
-	, EN_START  => '_start'
-	, EN_STAT   => '_stat_tick'
-	, EN_STOP   => '_stop'
+	EN_CHILD     => '_child'
+	, EN_GC      => '_garbage_collect'
+	, EN_PARENT  => '_parent'
+	, EN_SCPOLL  => '_sigchld_poll'
+	, EN_SIGNAL  => '_signal'
+	, EN_DEFAULT => '_default'
+	, EN_START   => '_start'
+	, EN_STAT    => '_stat_tick'
+	, EN_STOP    => '_stop'
 };
 
 # These are POE's event classes (types).  They often shadow the event
@@ -87,6 +105,75 @@ use constant {
 	CHILD_GAIN     => 'gain'   # The session was inherited from another.
 	, CHILD_LOSE   => 'lose'   # The session is no longer this one's child.
 	, CHILD_CREATE => 'create' # The session was created as a child of this.
+};
+
+use constant {
+	TRACE_DEFAULT    => $ENV{POE_TRACE_DEFAULT}
+	, ASSERT_DEFAULT => $ENV{POE_ASSERT_DEFAULT}
+};
+
+use constant {
+	TRACE_EVENTS => (
+		defined($ENV{POE_TRACE_EVENTS})
+		? $ENV{POE_TRACE_EVENTS} : TRACE_DEFAULT
+	)
+	, TRACE_FILES => (
+		defined($ENV{POE_TRACE_FILES})
+		? $ENV{POE_TRACE_FILES} : TRACE_DEFAULT
+	)
+	, TRACE_PROFILE => (
+		defined($ENV{POE_TRACE_PROFILE})
+		? $ENV{POE_TRACE_PROFILE} : TRACE_DEFAULT
+	)
+	, TRACE_REFCNT => (
+		defined($ENV{POE_TRACE_REFCNT})
+		? $ENV{POE_TRACE_REFCNT} : TRACE_DEFAULT
+	)
+	, TRACE_RETVALS => (
+		defined($ENV{POE_TRACE_RETVALS})
+		? $ENV{POE_TRACE_RETVALS} : TRACE_DEFAULT
+	)
+	, TRACE_SESSIONS => (
+		defined($ENV{POE_TRACE_SESSIONS})
+		? $ENV{POE_TRACE_SESSIONS} : TRACE_DEFAULT
+	)
+	, TRACE_SIGNALS => (
+		defined($ENV{POE_TRACE_SIGNALS})
+		? $ENV{POE_TRACE_SIGNALS} : TRACE_DEFAULT
+	)
+	, TRACE_STATISTICS => ( 
+		defined($ENV{POE_TRACE_STATISTICS})
+		? $ENV{POE_TRACE_STATISTICS} : TRACE_DEFAULT
+	)
+	, TRACE_DESTROY => ( 
+		defined($ENV{POE_TRACE_DESTROY})
+		? $ENV{POE_TRACE_DESTROY} : TRACE_DEFAULT
+	)
+
+	, ASSERT_DATA => (
+		defined($ENV{POE_ASSERT_DATA})
+		? $ENV{POE_ASSERT_DATA} : ASSERT_DEFAULT
+	)
+	, ASSERT_EVENTS => (
+		defined($ENV{POE_ASSERT_EVENTS})
+		? $ENV{POE_ASSERT_EVENTS} : ASSERT_DEFAULT
+	)
+	, ASSERT_FILES => (
+		defined($ENV{POE_ASSERT_FILES})
+		? $ENV{POE_ASSERT_FILES} : ASSERT_DEFAULT
+	)
+	, ASSERT_RETVALS => (
+		defined($ENV{POE_ASSERT_RETVALS})
+		? $ENV{POE_ASSERT_RETVALS} : ASSERT_DEFAULT
+	)
+	, ASSERT_USAGE => (
+		defined($ENV{POE_ASSERT_USAGE})
+		? $ENV{POE_ASSERT_USAGE} : ASSERT_DEFAULT
+	)
+	, ASSERT_STATES => (
+		defined($ENV{POE_ASSERT_STATES})
+		? $ENV{POE_ASSERT_STATES} : ASSERT_DEFAULT
+	)
 };
 
 1;
