@@ -1,6 +1,3 @@
-# $Id: POE.pm 2525 2009-04-21 04:02:03Z rcaputo $
-# Copyrights and documentation are after __END__.
-
 package POE;
 
 use strict;
@@ -675,12 +672,3 @@ nearly as cool without you.
 Except where otherwise noted, POE is Copyright 1998-2007 Rocco Caputo.
 All rights reserved.  POE is free software; you may redistribute it
 and/or modify it under the same terms as Perl itself.
-
-=back
-
-Thank you for reading!
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.
