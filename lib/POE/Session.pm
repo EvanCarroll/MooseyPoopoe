@@ -1,8 +1,7 @@
-# $Id: Session.pm 2523 2009-04-15 22:32:14Z bingosnet $
-
 package POE::Session;
-
 use strict;
+
+use POE::Helpers::Constants qw(:events ASSERT_STATES TRACE_DESTROY);
 
 use vars qw($VERSION);
 $VERSION = do {my($r)=(q$Revision: 2523 $=~/(\d+)/);sprintf"1.%04d",$r};
@@ -24,95 +23,6 @@ sub CREATE_HEAP     () { 'heap' }
 sub OPT_TRACE       () { 'trace' }
 sub OPT_DEBUG       () { 'debug' }
 sub OPT_DEFAULT     () { 'default' }
-
-sub EN_START        () { '_start' }
-sub EN_DEFAULT      () { '_default' }
-sub EN_SIGNAL       () { '_signal' }
-
-#------------------------------------------------------------------------------
-# Debugging flags for subsystems.  They're done as double evals here
-# so that someone may define them before using POE::Session (or POE),
-# and the pre-defined value will take precedence over the defaults
-# here.
-
-# Shorthand for defining an assert constant.
-
-sub _define_assert {
-  no strict 'refs';
-  foreach my $name (@_) {
-
-    local $^W = 0;
-
-    next if defined *{"ASSERT_$name"}{CODE};
-    if (defined *{"POE::Kernel::ASSERT_$name"}{CODE}) {
-      eval(
-        "sub ASSERT_$name () { " .
-        *{"POE::Kernel::ASSERT_$name"}{CODE}->() .
-        "}"
-      );
-      die if $@;
-    }
-    else {
-      eval "sub ASSERT_$name () { ASSERT_DEFAULT }";
-      die if $@;
-    }
-  }
-}
-
-# Shorthand for defining a trace constant.
-sub _define_trace {
-  no strict 'refs';
-
-  local $^W = 0;
-
-  foreach my $name (@_) {
-    next if defined *{"TRACE_$name"}{CODE};
-    if (defined *{"POE::Kernel::TRACE_$name"}{CODE}) {
-      eval(
-        "sub TRACE_$name () { " .
-        *{"POE::Kernel::TRACE_$name"}{CODE}->() .
-        "}"
-      );
-      die if $@;
-    }
-    else {
-      eval "sub TRACE_$name () { TRACE_DEFAULT }";
-      die if $@;
-    }
-  }
-}
-
-BEGIN {
-
-  # ASSERT_DEFAULT changes the default value for other ASSERT_*
-  # constants.  It inherits POE::Kernel's ASSERT_DEFAULT value, if
-  # it's present.
-
-  unless (defined &ASSERT_DEFAULT) {
-    if (defined &POE::Kernel::ASSERT_DEFAULT) {
-      eval( "sub ASSERT_DEFAULT () { " . &POE::Kernel::ASSERT_DEFAULT . " }" );
-    }
-    else {
-      eval 'sub ASSERT_DEFAULT () { 0 }';
-    }
-  };
-
-  # TRACE_DEFAULT changes the default value for other TRACE_*
-  # constants.  It inherits POE::Kernel's TRACE_DEFAULT value, if
-  # it's present.
-
-  unless (defined &TRACE_DEFAULT) {
-    if (defined &POE::Kernel::TRACE_DEFAULT) {
-      eval( "sub TRACE_DEFAULT () { " . &POE::Kernel::TRACE_DEFAULT . " }" );
-    }
-    else {
-      eval 'sub TRACE_DEFAULT () { 0 }';
-    }
-  };
-
-  _define_assert("STATES");
-  _define_trace("DESTROY");
-}
 
 #------------------------------------------------------------------------------
 # Export constants into calling packages.  This is evil; perhaps
