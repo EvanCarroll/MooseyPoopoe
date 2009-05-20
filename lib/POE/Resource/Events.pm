@@ -4,9 +4,7 @@ use strict;
 
 use POE::Helpers::Error qw( _warn );
 
-#------------------------------------------------------------------------------
 # Events themselves.
-
 use constant {
 	EV_SESSION      => 0  # $destination_session,
 	, EV_SOURCE     => 1  # $sender_session,
@@ -22,7 +20,6 @@ use constant {
 };
 
 # A local copy of the queue so we can manipulate it directly.
-
 my %event_count;
 #  ( $session => $count,
 #    ...,
