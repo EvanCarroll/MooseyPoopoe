@@ -1,29 +1,16 @@
-# $Id: Select.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Select loop bridge for POE::Kernel.
-
-# Empty package to appease perl.
 package POE::Loop::Select;
-
+use Moose::Role;
 use strict;
 
-# Include common signal handling.
-use POE::Loop::PerlSignals;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-=for poe_tests
-
-sub skip_tests { return }
-
-=cut
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
 use Errno qw(EINPROGRESS EWOULDBLOCK EINTR);
+use POE::Helpers::Constants qw(
+	:filehandle
+	ASSERT_DATA ASSERT_FILES
+	TRACE_EVENTS TRACE_FILES TRACE_STATISTICS
+);
+use POE::Helpers::Error qw(:all);
+
+with 'POE::Loop::PerlSignals';
 
 # select() vectors.  They're stored in an array so that the MODE_*
 # offsets can refer to them.  This saves some code at the expense of
@@ -68,7 +55,7 @@ sub loop_finalize {
   while (my ($mode_name, $mode_offset) = each(%kernel_modes)) {
     my $bits = unpack('b*', $loop_vectors[$mode_offset]);
     if (index($bits, '1') >= 0) {
-      POE::Kernel::_warn "<rc> LOOP VECTOR LEAK: $mode_name = $bits\a\n";
+      _warn "<rc> LOOP VECTOR LEAK: $mode_name = $bits\a\n";
     }
   }
 
@@ -175,7 +162,7 @@ sub loop_do_timeslice {
   # Tracing is relatively expensive, but it's not for live systems.
   # We can get away with it being after the timeout calculation.
   if (TRACE_EVENTS) {
-    POE::Kernel::_warn(
+    _warn(
       '<ev> Kernel::run() iterating.  ' .
       sprintf(
         "now(%.4f) timeout(%.4f) then(%.4f)\n",
@@ -185,7 +172,7 @@ sub loop_do_timeslice {
   }
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       "<fh> ,----- SELECT BITS IN -----\n",
       "<fh> | READ    : ", unpack('b*', $loop_vectors[MODE_RD]), "\n",
       "<fh> | WRITE   : ", unpack('b*', $loop_vectors[MODE_WR]), "\n",
@@ -218,18 +205,18 @@ sub loop_do_timeslice {
           $! != EWOULDBLOCK and
           $! != EINTR
         ) {
-          POE::Kernel::_trap("<fh> select error: $!");
+          _trap("<fh> select error: $!");
         }
       }
 
       if (TRACE_FILES) {
         if ($hits > 0) {
-          POE::Kernel::_warn "<fh> select hits = $hits\n";
+          _warn "<fh> select hits = $hits\n";
         }
         elsif ($hits == 0) {
-          POE::Kernel::_warn "<fh> select timed out...\n";
+          _warn "<fh> select timed out...\n";
         }
-        POE::Kernel::_warn(
+        _warn(
           "<fh> ,----- SELECT BITS OUT -----\n",
           "<fh> | READ    : ", unpack('b*', $rout), "\n",
           "<fh> | WRITE   : ", unpack('b*', $wout), "\n",
@@ -256,21 +243,21 @@ sub loop_do_timeslice {
 
         if (TRACE_FILES) {
           if (@rd_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<fh> found pending rd selects: ",
               join( ', ', sort { $a <=> $b } @rd_selects ),
               "\n"
             );
           }
           if (@wr_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<sl> found pending wr selects: ",
               join( ', ', sort { $a <=> $b } @wr_selects ),
               "\n"
             );
           }
           if (@ex_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<sl> found pending ex selects: ",
               join( ', ', sort { $a <=> $b } @ex_selects ),
               "\n"
@@ -280,7 +267,7 @@ sub loop_do_timeslice {
 
         if (ASSERT_FILES) {
           unless (@rd_selects or @wr_selects or @ex_selects) {
-            POE::Kernel::_trap(
+            _trap(
               "<fh> found no selects, with $hits hits from select???\n"
             );
           }
@@ -366,8 +353,3 @@ L<POE>, L<POE::Loop>, L<select>, L<POE::Loop::PerlSignals>.
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.
