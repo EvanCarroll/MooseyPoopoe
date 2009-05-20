@@ -32,36 +32,36 @@ sub BOGUS_SESSION () { 31415 }
   );
 
   # Event 1 is the kernel's performance poll timer.
-  ok($event_id == 2, "first user created event is ID $event_id (should be 3)");
+  is($event_id, 2, "first user created event is ID $event_id (should be 3)");
 
   # Kernel should therefore have two events due.  A nonexistent
   # session should have zero.
 
-  ok(
-    $poe_kernel->_data_ev_get_count_from($poe_kernel) == 2,
+  is(
+    $poe_kernel->_data_ev_get_count_from($poe_kernel), 2,
     "POE::Kernel has enqueued three events"
   );
 
-  ok(
-    $poe_kernel->_data_ev_get_count_to($poe_kernel) == 2,
+  is(
+    $poe_kernel->_data_ev_get_count_to($poe_kernel), 2,
     "POE::Kernel has three events enqueued for it"
   );
 
-  ok(
-    $poe_kernel->_data_ev_get_count_from("nothing") == 0,
+  is(
+    $poe_kernel->_data_ev_get_count_from("nothing"), 0,
     "unknown session has enqueued no events"
   );
 
-  ok(
-    $poe_kernel->_data_ev_get_count_to("nothing") == 0,
+  is(
+    $poe_kernel->_data_ev_get_count_to("nothing"), 0,
     "unknown session has no events enqueued for it"
   );
 
   # Performance timer (x2), session, and from/to for the event we
   # enqueued.
 
-  ok(
-    $poe_kernel->_data_ses_refcount($poe_kernel) == 4,
+  is(
+    $poe_kernel->_data_ses_refcount($poe_kernel), 4,
     "POE::Kernel's reference count is five"
   );
 }
@@ -114,9 +114,9 @@ check_references(
     $poe_kernel, $ids[1]
   );
 
-  ok($time == 2, "removed event has the expected due time");
-  ok(
-    $event->[POE::Kernel::EV_NAME] eq "timer",
+  is($time, 2, "removed event has the expected due time");
+  is(
+    $event->[POE::Kernel::EV_NAME], "timer",
     "removed event has the expected name"
   );
 
@@ -146,13 +146,13 @@ check_references(
   $poe_kernel, 0, "after removing timers from a bogus session"
 );
 
-ok(
-  $poe_kernel->_data_ev_get_count_from(BOGUS_SESSION) == 0,
+is(
+  $poe_kernel->_data_ev_get_count_from(BOGUS_SESSION), 0,
   "bogus session has created no events"
 );
 
-ok(
-  $poe_kernel->_data_ev_get_count_to(BOGUS_SESSION) == 0,
+is(
+  $poe_kernel->_data_ev_get_count_to(BOGUS_SESSION), 0,
   "bogus session has no events enqueued for it"
 );
 
@@ -168,20 +168,20 @@ check_references(
   # session.
 
   my @removed = $poe_kernel->_data_ev_clear_alarm_by_session(8675309);
-  ok(@removed == 0, "didn't remove alarm from nonexistent session");
+  is(scalar @removed, 0, "didn't remove alarm from nonexistent session");
 }
 
 { # Remove the last of the timers.  The Kernel session is the only
   # reference left for it.
 
   my @removed = $poe_kernel->_data_ev_clear_alarm_by_session($poe_kernel);
-  ok(@removed == 1, "removed the last alarm successfully");
+  is(scalar @removed, 1, "removed the last alarm successfully");
 
   # Verify that the removed timer is the correct one.  We still have
   # the signal polling timer around there somewhere.
   my ($removed_name, $removed_time, $removed_args) = @{$removed[0]};
-  ok($removed_name eq "other-timer", "last alarm had the corrent name");
-  ok($removed_time == 4, "last alarm had the corrent due time");
+  is($removed_name, "other-timer", "last alarm had the corrent name");
+  is($removed_time, 4, "last alarm had the corrent due time");
 
   check_references(
     $poe_kernel, 0, "after clearing all alarms for a session"
@@ -207,8 +207,8 @@ $poe_kernel->_data_ev_clear_session($poe_kernel);
       1,                      # due time
     );
   };
-  ok(
-    $@ && $@ =~ /can't enqueue event .*? for nonexistent session/,
+ 	like(
+    $@, qr/can't enqueue event .*? for nonexistent session/,
     "trap while enqueuing event for non-existent session"
   );
 }
@@ -290,8 +290,8 @@ sub check_references {
   my $to_count   = $poe_kernel->_data_ev_get_count_to($session);
   my $check_sum  = $from_count + $to_count + $base_ref;
 
-  ok($check_sum == $ref_count, "refcnts $ref_count == $check_sum $when");
-  ok($from_count == $to_count, "evcount $from_count == $to_count $when");
+  is($check_sum, $ref_count, "refcnts $ref_count == $check_sum $when");
+  is($from_count, $to_count, "evcount $from_count == $to_count $when");
 }
 
 1;
