@@ -28,9 +28,7 @@ my %loop_filenos;
 # Allow $^T to change without affecting our internals.
 my $start_time = $^T;
 
-#------------------------------------------------------------------------------
 # Loop construction and destruction.
-
 sub loop_initialize {
   my $self = shift;
 
