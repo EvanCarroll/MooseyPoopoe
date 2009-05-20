@@ -1,51 +1,19 @@
-# $Id: Tk.pm 2508 2009-03-27 17:35:31Z rcaputo $
-
-# Tk-Perl event loop bridge for POE::Kernel.
-
 package POE::Loop::Tk;
+use Moose;
+use strict;
 
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2508 $=~/(\d+)/);sprintf"1.%04d",$r};
+with 'POE::Loop::PerlSignals'
 
-# Include common things.
-use POE::Loop::PerlSignals;
 use POE::Loop::TkCommon;
 
 use Tk 800.021;
 use 5.00503;
 
-=for poe_tests
-
-sub skip_tests {
-  return "Tk needs a DISPLAY (set one today, okay?)" unless (
-    (defined $ENV{DISPLAY} and length $ENV{DISPLAY}) or $^O eq "MSWin32"
-  );
-  my $test_name = shift;
-  if ($test_name eq "k_signals_rerun" and $^O eq "MSWin32") {
-    return "This test crashes Perl when run with Tk on $^O";
-  }
-  return "Tk tests require the Tk module" if do { eval "use Tk"; $@ };
-  my $m = eval { Tk::MainWindow->new() };
-  if ($@) {
-    my $why = $@;
-    $why =~ s/ at .*//;
-    return "Tk couldn't be initialized: $why";
-  }
-  return;
-}
-
-=cut
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
-
 # Hand off to POE::Loop::TkActiveState if we're running under
 # ActivePerl.
 BEGIN {
   if ($^O eq "MSWin32") {
-    require POE::Loop::TkActiveState;
+    with 'POE::Loop::TkActiveState';
     POE::Loop::TkActiveState->import();
     die "not really dying";
   }
@@ -234,8 +202,3 @@ L<POE::Loop::PerlSignals>.
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

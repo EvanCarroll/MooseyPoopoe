@@ -1,22 +1,16 @@
-# $Id: PerlSignals.pm 2470 2009-02-27 03:24:48Z rcaputo $
+package POE::Loop::PerlSignals;
+use Moose::Role;
+use strict;
 
 # Plain Perl signal handling is something shared by several event
 # loops.  The invariant code has moved out here so that each loop may
 # use it without reinventing it.  This will save maintenance and
 # shrink the distribution.  Yay!
 
-package POE::Loop::PerlSignals;
-
-use strict;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2470 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
-use POE::Kernel;
+use POE::Helpers::Constants qw(
+	TRACE_SIGNALS EN_SIGNAL ET_SIGNAL
+);
+use POE::Helpers::Error qw( _warn );
 
 # Flag so we know which signals are watched.  Used to reset those
 # signals during finalization.
@@ -27,7 +21,7 @@ my %signal_watched;
 
 sub _loop_signal_handler_generic {
   if (TRACE_SIGNALS) {
-    POE::Kernel::_warn "<sg> Enqueuing generic SIG$_[0] event";
+    _warn "<sg> Enqueuing generic SIG$_[0] event";
   }
 
   $POE::Kernel::poe_kernel->_data_ev_enqueue(
@@ -39,7 +33,7 @@ sub _loop_signal_handler_generic {
 
 sub _loop_signal_handler_pipe {
   if (TRACE_SIGNALS) {
-    POE::Kernel::_warn "<sg> Enqueuing PIPE-like SIG$_[0] event";
+    _warn "<sg> Enqueuing PIPE-like SIG$_[0] event";
   }
 
   $POE::Kernel::poe_kernel->_data_ev_enqueue(
@@ -52,7 +46,7 @@ sub _loop_signal_handler_pipe {
 # only used under USE_SIGCHLD
 sub _loop_signal_handler_chld {
   if (TRACE_SIGNALS) {
-    POE::Kernel::_warn "<sg> Enqueuing CHLD-like SIG$_[0] event";
+    _warn "<sg> Enqueuing CHLD-like SIG$_[0] event";
   }
 
   $POE::Kernel::poe_kernel->_data_sig_enqueue_poll_event();
@@ -69,7 +63,7 @@ sub loop_watch_signal {
 
   # Child process has stopped.
   if ($signal eq 'CHLD' or $signal eq 'CLD') {
-    if ( USE_SIGCHLD ) {
+    if ( POE::Kernel::USE_SIGCHLD() ) {
       # install, but also trigger once
       # there may be a race condition between forking, and $kernel->sig_chld in
       # which the signal is already delivered
@@ -102,12 +96,12 @@ sub loop_ignore_signal {
   delete $signal_watched{$signal};
 
     if ($signal eq 'CHLD' or $signal eq 'CLD') {
-    if ( USE_SIGCHLD ) {
+    if ( POE::Kernel::USE_SIGCHLD() ) {
       if( $self->_data_sig_child_procs) {
         # We need SIGCHLD to stay around after shutdown, so that
         # child processes may be reaped and kr_child_procs=0
         if (TRACE_SIGNALS) {
-          POE::Kernel::_warn "<sg> Keeping SIG$signal anyway!";
+          _warn "<sg> Keeping SIG$signal anyway!";
         }
         return;
       }
@@ -128,7 +122,7 @@ sub loop_ignore_signal {
   }
 
   if (TRACE_SIGNALS) {
-    POE::Kernel::_warn "<sg> $state SIG$signal";
+    _warn "<sg> $state SIG$signal";
   }
   $SIG{$signal} = $state;
 }
@@ -169,8 +163,3 @@ L<POE>, L<POE::Loop>
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

@@ -1,32 +1,17 @@
-# $Id: TkCommon.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# The common bits of our system-specific Tk event loops.  This is
-# everything but file handling.
-
-# Empty package to appease perl.
 package POE::Loop::TkCommon;
+use Moose;
+use strict;
 
-# Include common signal handling.
-use POE::Loop::PerlSignals;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+with 'POE::Loop::PerlSignals'
 
 use Tk 800.021;
 use 5.00503;
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
 
 use Tk qw(DoOneEvent DONT_WAIT ALL_EVENTS);
 
 my $_watcher_time;
 
-#------------------------------------------------------------------------------
 # Signal handler maintenance functions.
-
 sub loop_attach_uidestroy {
   my ($self, $window) = @_;
 
@@ -43,9 +28,7 @@ sub loop_attach_uidestroy {
   );
 }
 
-#------------------------------------------------------------------------------
 # Maintain time watchers.
-
 sub loop_resume_time_watcher {
   my ($self, $next_time) = @_;
   $self->loop_pause_time_watcher();
@@ -115,7 +98,7 @@ sub Tk::Error {
     $grab->Unbusy if defined $grab;
   }
   chomp($error);
-  POE::Kernel::_warn "Tk::Error: $error\n " . join("\n ",@_)."\n";
+  _warn "Tk::Error: $error\n " . join("\n ",@_)."\n";
 
   if ($poe_kernel->_data_ses_count()) {
     $poe_kernel->_dispatch_event(
@@ -126,9 +109,7 @@ sub Tk::Error {
   }
 }
 
-#------------------------------------------------------------------------------
 # The event loop itself.
-
 sub loop_do_timeslice {
   my $self = shift;
 
@@ -154,9 +135,7 @@ sub loop_run {
   }
 }
 
-sub loop_halt {
-  # Do nothing.
-}
+sub loop_halt { }
 
 1;
 
@@ -186,8 +165,3 @@ L<POE::Loop::TkActiveState>
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

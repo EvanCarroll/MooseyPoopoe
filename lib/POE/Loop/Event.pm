@@ -1,48 +1,17 @@
-# $Id: Event.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Event.pm event loop bridge for POE::Kernel.
-
-# Empty package to appease perl.
 package POE::Loop::Event;
-
+use Moose::Role;
 use strict;
 
-# Include common signal handling.  Signals should be safe now, and for
+use POE::Helpers::Constants qw(TRACE_STATISTICS);
+
 # some reason Event isn't dispatching SIGCHLD to me circa POE r2084.
-use POE::Loop::PerlSignals;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-=for poe_tests
-
-sub skip_tests {
-  return "Event tests require the Event module" if (
-    do { eval "use Event"; $@ }
-  );
-  my $test_name = shift;
-  if ($test_name eq "k_signals_rerun" and $^O eq "MSWin32") {
-    return "This test crashes Perl when run with Tk on $^O";
-  }
-  if ($test_name eq "wheel_readline" and $^O eq "darwin") {
-    return "Event skips two of its own tests for the same reason";
-  }
-}
-
-=cut
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
+with 'POE::Loop::PerlSignals';
 
 my $_watcher_timer;
 my @fileno_watcher;
 my %signal_watcher;
 
-#------------------------------------------------------------------------------
 # Loop construction and destruction.
-
 sub loop_initialize {
   my $self = shift;
 
@@ -58,7 +27,7 @@ sub loop_finalize {
   foreach my $fd (0..$#fileno_watcher) {
     next unless defined $fileno_watcher[$fd];
     foreach my $mode (MODE_RD, MODE_WR, MODE_EX) {
-      POE::Kernel::_warn(
+      _warn(
         "Mode $mode watcher for fileno $fd is defined during loop finalize"
       ) if defined $fileno_watcher[$fd]->[$mode];
     }
@@ -67,16 +36,12 @@ sub loop_finalize {
   $self->loop_ignore_all_signals();
 }
 
-#------------------------------------------------------------------------------
 # Signal handler maintenance functions.
-
 sub loop_attach_uidestroy {
   # does nothing
 }
 
-#------------------------------------------------------------------------------
 # Maintain time watchers.
-
 sub loop_resume_time_watcher {
   my ($self, $next_time) = @_;
   ($_watcher_timer and $next_time) or return;
@@ -96,9 +61,7 @@ sub loop_pause_time_watcher {
   $_watcher_timer->stop();
 }
 
-#------------------------------------------------------------------------------
 # Maintain filehandle watchers.
-
 sub loop_watch_filehandle {
   my ($self, $handle, $mode) = @_;
   my $fileno = fileno($handle);
@@ -148,7 +111,6 @@ sub loop_resume_filehandle {
 }
 
 # Timer callback to dispatch events.
-
 my $last_time = time();
 
 sub _loop_event_callback {
@@ -194,9 +156,7 @@ sub _loop_select_callback {
   $self->_test_if_kernel_is_idle();
 }
 
-#------------------------------------------------------------------------------
 # The event loop itself.
-
 sub loop_do_timeslice {
   Event::one_event();
 }
@@ -240,8 +200,3 @@ L<POE>, L<POE::Loop>, L<Event>, L<POE::Loop::PerlSignals>
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

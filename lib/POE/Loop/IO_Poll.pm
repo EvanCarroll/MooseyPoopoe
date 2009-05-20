@@ -1,33 +1,12 @@
-# $Id: IO_Poll.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
 # IO::Poll event loop bridge for POE::Kernel.  The theory is that this
 # will be faster for large scale applications.  This file is
 # contributed by Matt Sergeant (baud).
-
-# Empty package to appease perl.
 package POE::Loop::IO_Poll;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
+use Moose::Role;
+use strict;
 
 # Include common signal handling.
-use POE::Loop::PerlSignals;
-
-# Everything plugs into POE::Kernel;
-package POE::Kernel;
-
-=for poe_tests
-
-sub skip_tests {
-  return "IO::Poll is not 100% compatible with $^O" if $^O eq "MSWin32";
-  return "IO::Poll tests require the IO::Poll module" if (
-    do { eval "use IO::Poll"; $@ }
-  );
-}
-
-=cut
-
-use strict;
+with 'POE::Loop::PerlSignals';
 
 # Be sure we're using a contemporary version of IO::Poll.  There were
 # issues with certain versios of IO::Poll prior to 0.05.  The latest
@@ -130,7 +109,7 @@ sub loop_watch_filehandle {
   my $new = $current | $type;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       sprintf(
         "<fh> Watch $fileno: " .
         "Current mask: 0x%02X - including 0x%02X = 0x%02X\n",
@@ -151,7 +130,7 @@ sub loop_ignore_filehandle {
   my $new = $current & ~$type;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       sprintf(
         "<fh> Ignore $fileno: " .
         ": Current mask: 0x%02X - removing 0x%02X = 0x%02X\n",
@@ -177,7 +156,7 @@ sub loop_pause_filehandle {
   my $new = $current & ~$type;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       sprintf(
         "<fh> Pause $fileno: " .
         ": Current mask: 0x%02X - removing 0x%02X = 0x%02X\n",
@@ -203,7 +182,7 @@ sub loop_resume_filehandle {
   my $new = $current | $type;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       sprintf(
         "<fh> Resume $fileno: " .
         "Current mask: 0x%02X - including 0x%02X = 0x%02X\n",
@@ -243,7 +222,7 @@ sub loop_do_timeslice {
   }
 
   if (TRACE_EVENTS) {
-    POE::Kernel::_warn(
+    _warn(
       '<ev> Kernel::run() iterating.  ' .
       sprintf(
         "now(%.4f) timeout(%.4f) then(%.4f)\n",
@@ -270,7 +249,7 @@ sub loop_do_timeslice {
       push @modes, 'r' if $flags & (POLLRDNORM | POLLHUP | POLLERR);
       push @modes, 'w' if $flags & (POLLWRNORM | POLLHUP | POLLERR);
       push @modes, 'x' if $flags & (POLLRDBAND | POLLHUP | POLLERR);
-      POE::Kernel::_warn(
+      _warn(
         "<fh> file descriptor $_ = modes(@modes) types(@types)\n"
       );
     }
@@ -290,7 +269,7 @@ sub loop_do_timeslice {
 
       if (ASSERT_FILES) {
         if ($hits < 0) {
-          POE::Kernel::_trap("<fh> poll returned $hits (error): $!")
+          _trap("<fh> poll returned $hits (error): $!")
             unless ( ($! == EINPROGRESS) or
                      ($! == EWOULDBLOCK) or
                      ($! == EINTR)
@@ -300,10 +279,10 @@ sub loop_do_timeslice {
 
       if (TRACE_FILES) {
         if ($hits > 0) {
-          POE::Kernel::_warn "<fh> poll hits = $hits\n";
+          _warn "<fh> poll hits = $hits\n";
         }
         elsif ($hits == 0) {
-          POE::Kernel::_warn "<fh> poll timed out...\n";
+          _warn "<fh> poll timed out...\n";
         }
       }
 
@@ -325,7 +304,7 @@ sub loop_do_timeslice {
                $got_mask & (POLLRDNORM | POLLHUP | POLLERR | POLLNVAL)
              ) {
             if (TRACE_FILES) {
-              POE::Kernel::_warn "<fh> enqueuing read for fileno $fd";
+              _warn "<fh> enqueuing read for fileno $fd";
             }
 
             push @rd_ready, $fd;
@@ -335,7 +314,7 @@ sub loop_do_timeslice {
                $got_mask & (POLLWRNORM | POLLHUP | POLLERR | POLLNVAL)
              ) {
             if (TRACE_FILES) {
-              POE::Kernel::_warn "<fh> enqueuing write for fileno $fd";
+              _warn "<fh> enqueuing write for fileno $fd";
             }
 
             push @wr_ready, $fd;
@@ -345,7 +324,7 @@ sub loop_do_timeslice {
                $got_mask & (POLLRDBAND | POLLHUP | POLLERR | POLLNVAL)
              ) {
             if (TRACE_FILES) {
-              POE::Kernel::_warn "<fh> enqueuing expedite for fileno $fd";
+              _warn "<fh> enqueuing expedite for fileno $fd";
             }
 
             push @ex_ready, $fd;
@@ -419,8 +398,3 @@ L<POE>, L<POE::Loop>, L<IO::Poll>, L<POE::Loop::PerlSignals>
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

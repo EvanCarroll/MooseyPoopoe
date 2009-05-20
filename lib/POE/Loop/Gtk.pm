@@ -1,35 +1,8 @@
-# $Id: Gtk.pm 2509 2009-03-27 20:02:21Z rcaputo $
-
-# Gtk-Perl event loop bridge for POE::Kernel.
-
-# Empty package to appease perl.
 package POE::Loop::Gtk;
-
+use Moose::Role;
 use strict;
 
-# Include common signal handling.
-use POE::Loop::PerlSignals;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2509 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-=for poe_tests
-
-sub skip_tests {
-  return "Gtk needs a DISPLAY (set one today, okay?)" unless (
-    defined $ENV{DISPLAY} and length $ENV{DISPLAY}
-  );
-  return "Gtk tests require the Gtk module" if do { eval "use Gtk"; $@ };
-  return "Gtk init failed.  Is DISPLAY valid?" unless defined Gtk->init_check;
-  return;
-}
-
-=cut
-
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
+with 'POE::Loop::PerlSignals';
 
 my $_watcher_timer;
 my @fileno_watcher;
@@ -68,7 +41,7 @@ sub loop_finalize {
   foreach my $fd (0..$#fileno_watcher) {
     next unless defined $fileno_watcher[$fd];
     foreach my $mode (MODE_RD, MODE_WR, MODE_EX) {
-      POE::Kernel::_warn(
+      _warn(
         "Mode $mode watcher for fileno $fd is defined during loop finalize"
       ) if defined $fileno_watcher[$fd]->[$mode];
     }
@@ -144,7 +117,7 @@ sub loop_watch_filehandle {
   }
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> watching $handle in mode $mode";
+    _warn "<fh> watching $handle in mode $mode";
   }
 
   # Register the new watcher.
@@ -172,7 +145,7 @@ sub loop_ignore_filehandle {
   my $fileno = fileno($handle);
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> ignoring $handle in mode $mode";
+    _warn "<fh> ignoring $handle in mode $mode";
   }
 
   # Don't bother removing a select if none was registered.
@@ -187,7 +160,7 @@ sub loop_pause_filehandle {
   my $fileno = fileno($handle);
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> pausing $handle in mode $mode";
+    _warn "<fh> pausing $handle in mode $mode";
   }
 
   Gtk::Gdk->input_remove($fileno_watcher[$fileno]->[$mode]);
@@ -202,7 +175,7 @@ sub loop_resume_filehandle {
   return 1 if defined $fileno_watcher[$fileno]->[$mode];
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> resuming $handle in mode $mode";
+    _warn "<fh> resuming $handle in mode $mode";
   }
 
   $fileno_watcher[$fileno]->[$mode] =
@@ -265,7 +238,7 @@ sub _loop_select_read_callback {
   my ($handle, $fileno, $hash) = @_;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> got read callback for $handle";
+    _warn "<fh> got read callback for $handle";
   }
 
   $self->_data_handle_enqueue_ready(MODE_RD, $fileno);
@@ -280,7 +253,7 @@ sub _loop_select_write_callback {
   my ($handle, $fileno, $hash) = @_;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> got write callback for $handle";
+    _warn "<fh> got write callback for $handle";
   }
 
   $self->_data_handle_enqueue_ready(MODE_WR, $fileno);
@@ -295,7 +268,7 @@ sub _loop_select_expedite_callback {
   my ($handle, $fileno, $hash) = @_;
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn "<fh> got expedite callback for $handle";
+    _warn "<fh> got expedite callback for $handle";
   }
 
   $self->_data_handle_enqueue_ready(MODE_EX, $fileno);
@@ -349,8 +322,3 @@ L<POE>, L<POE::Loop>, L<Gtk>, L<POE::Loop::PerlSignals>
 
 Please see L<POE> for more information about authors, contributors,
 and POE's licensing.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

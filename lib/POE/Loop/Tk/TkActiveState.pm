@@ -1,15 +1,6 @@
-# $Id: TkActiveState.pm 2447 2009-02-17 05:04:43Z rcaputo $
-
-# Tk-Perl event loop bridge for POE::Kernel.
-
-# Dummy package so the version is indexed properly.
 package POE::Loop::TkActiveState;
-
-use vars qw($VERSION);
-$VERSION = do {my($r)=(q$Revision: 2447 $=~/(\d+)/);sprintf"1.%04d",$r};
-
-# Merge things into POE::Loop::Tk.
-package POE::Loop::Tk;
+use Moose::Role;
+use strict;
 
 # Include common things.
 use POE::Loop::PerlSignals;
@@ -18,10 +9,6 @@ use POE::Loop::TkCommon;
 use Tk 800.021;
 use 5.00503;
 
-# Everything plugs into POE::Kernel.
-package POE::Kernel;
-
-use strict;
 use Errno qw(EINPROGRESS EWOULDBLOCK EINTR);
 
 # select() vectors.  They're stored in an array so that the MODE_*
@@ -72,7 +59,7 @@ sub loop_finalize {
   while (my ($mode_name, $mode_offset) = each(%kernel_modes)) {
     my $bits = unpack('b*', $loop_vectors[$mode_offset]);
     if (index($bits, '1') >= 0) {
-      POE::Kernel::_warn "<rc> LOOP VECTOR LEAK: $mode_name = $bits\a\n";
+      _warn "<rc> LOOP VECTOR LEAK: $mode_name = $bits\a\n";
     }
   }
 
@@ -133,7 +120,7 @@ sub _poll_for_io {
   }
 
   if (TRACE_FILES) {
-    POE::Kernel::_warn(
+    _warn(
       "<fh> ,----- SELECT BITS IN -----\n",
       "<fh> | READ    : ", unpack('b*', $loop_vectors[MODE_RD]), "\n",
       "<fh> | WRITE   : ", unpack('b*', $loop_vectors[MODE_WR]), "\n",
@@ -161,7 +148,7 @@ sub _poll_for_io {
 
       if (ASSERT_FILES) {
         if ($hits < 0) {
-          POE::Kernel::_trap("<fh> select error: $!") unless (
+          _trap("<fh> select error: $!") unless (
             ($! == EINPROGRESS) or
             ($! == EWOULDBLOCK) or
             ($! == EINTR)
@@ -171,12 +158,12 @@ sub _poll_for_io {
 
       if (TRACE_FILES) {
         if ($hits > 0) {
-          POE::Kernel::_warn "<fh> select hits = $hits\n";
+          _warn "<fh> select hits = $hits\n";
         }
         elsif ($hits == 0) {
-          POE::Kernel::_warn "<fh> select timed out...\n";
+          _warn "<fh> select timed out...\n";
         }
-        POE::Kernel::_warn(
+        _warn(
           "<fh> ,----- SELECT BITS OUT -----\n",
           "<fh> | READ    : ", unpack('b*', $rout), "\n",
           "<fh> | WRITE   : ", unpack('b*', $wout), "\n",
@@ -203,21 +190,21 @@ sub _poll_for_io {
 
         if (TRACE_FILES) {
           if (@rd_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<fh> found pending rd selects: ",
               join( ', ', sort { $a <=> $b } @rd_selects ),
               "\n"
             );
           }
           if (@wr_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<sl> found pending wr selects: ",
               join( ', ', sort { $a <=> $b } @wr_selects ),
               "\n"
             );
           }
           if (@ex_selects) {
-            POE::Kernel::_warn(
+            _warn(
               "<sl> found pending ex selects: ",
               join( ', ', sort { $a <=> $b } @ex_selects ),
               "\n"
@@ -227,7 +214,7 @@ sub _poll_for_io {
 
         if (ASSERT_FILES) {
           unless (@rd_selects or @wr_selects or @ex_selects) {
-            POE::Kernel::_trap(
+            _trap(
               "<fh> found no selects, with $hits hits from select???\n"
             );
           }
