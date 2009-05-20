@@ -2,6 +2,8 @@ package POE::Resource::Sessions;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn _cluck _carp );
+
 use POE::Helpers::Constants qw( :events :child );
 use MooseX::AttributeHelpers;
 
@@ -35,7 +37,7 @@ sub _data_ses_finalize {
   while (my ($ses, $ses_rec) = each(%$kr_sessions)) {
     $finalized_ok = 0;
 
-    POE::Kernel::_warn(
+    _warn(
       "!!! Leaked session: $ses\n",
       "!!!\trefcnt = $ses_rec->[SS_REFCOUNT]\n",
       "!!!\tparent = $ses_rec->[SS_PARENT]\n",
@@ -75,7 +77,7 @@ sub _data_ses_allocate {
   # Manage parent/child relationship.
   if (defined $parent) {
     if (POE::Kernel::TRACE_SESSIONS) {
-      POE::Kernel::_warn(
+      _warn(
         "<ss> ",
         $self->_data_alias_loggable($session), " has parent ",
         $self->_data_alias_loggable($parent)
@@ -100,7 +102,7 @@ sub _data_ses_free {
 	my $kr_sessions = $self->kr_sessions;
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ss> freeing ",
       $self->_data_alias_loggable($session)
     );
@@ -136,7 +138,7 @@ sub _data_ses_free {
     undef $kr_sessions->{$session}->[SS_PARENT];
 
     if (POE::Kernel::TRACE_SESSIONS) {
-      POE::Kernel::_cluck(
+      _cluck(
         "<ss> removed ",
         $self->_data_alias_loggable($session), " from ",
         $self->_data_alias_loggable($parent)
@@ -190,7 +192,7 @@ sub _data_ses_move_child {
   }
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ss> moving ",
       $self->_data_alias_loggable($session), " to ",
       $self->_data_alias_loggable($new_parent)
@@ -208,7 +210,7 @@ sub _data_ses_move_child {
   delete $kr_sessions->{$old_parent}->[SS_CHILDREN]->{$session};
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ss> removed ",
       $self->_data_alias_loggable($session), " from ",
       $self->_data_alias_loggable($old_parent)
@@ -221,7 +223,7 @@ sub _data_ses_move_child {
   $kr_sessions->{$session}->[SS_PARENT] = $new_parent;
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ss> changed parent of ",
       $self->_data_alias_loggable($session), " to ",
       $self->_data_alias_loggable($new_parent)
@@ -232,7 +234,7 @@ sub _data_ses_move_child {
   $kr_sessions->{$new_parent}->[SS_CHILDREN]->{$session} = $session;
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ss> added ",
       $self->_data_alias_loggable($session), " as child of ",
       $self->_data_alias_loggable($new_parent)
@@ -318,7 +320,7 @@ sub _data_ses_refcount_dec {
   }
 
   if (POE::Kernel::TRACE_REFCNT) {
-    POE::Kernel::_warn(
+    _warn(
       "<rc> decrementing refcount for ",
       $self->_data_alias_loggable($session)
     );
@@ -346,7 +348,7 @@ sub _data_ses_refcount_inc {
   }
 
   if (POE::Kernel::TRACE_REFCNT) {
-    POE::Kernel::_warn(
+    _warn(
       "<rc> incrementing refcount for ",
       $self->_data_alias_loggable($session)
     );
@@ -375,7 +377,7 @@ sub _data_ses_collect_garbage {
 
   if (POE::Kernel::TRACE_REFCNT) {
     my $ss = $kr_sessions->{$session};
-    POE::Kernel::_warn(
+    _warn(
       "<rc> +----- GC test for ", $self->_data_alias_loggable($session),
       " ($session) -----\n",
       "<rc> | total refcnt  : ", $ss->[SS_REFCOUNT], "\n",
@@ -389,13 +391,13 @@ sub _data_ses_collect_garbage {
       "<rc> +---------------------------------------------------\n",
     );
     unless ($ss->[SS_REFCOUNT]) {
-      POE::Kernel::_warn(
+      _warn(
         "<rc> | ", $self->_data_alias_loggable($session),
         " is garbage; stopping it...\n",
         "<rc> +---------------------------------------------------\n",
       );
     }
-    POE::Kernel::_carp "<rc> | called";
+    _carp "<rc> | called";
   }
 
   if (POE::Kernel::ASSERT_DATA) {
@@ -451,7 +453,7 @@ sub _data_ses_stop {
   }
 
   if (POE::Kernel::TRACE_SESSIONS) {
-    POE::Kernel::_warn("<ss> stopping ", $self->_data_alias_loggable($session));
+    _warn("<ss> stopping ", $self->_data_alias_loggable($session));
   }
 
   # Maintain referential integrity between parents and children.

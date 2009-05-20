@@ -2,6 +2,8 @@ package POE::Resource::SIDs;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 ### Map session IDs to sessions.  Map sessions to session IDs.
 ### Maintain a sequence number for determining the next session ID.
 my %kr_session_ids;
@@ -38,11 +40,11 @@ sub _data_sid_initialize {
 sub _data_sid_finalize {
   my $finalized_ok = 1;
   while (my ($sid, $ses) = each(%kr_session_ids)) {
-    POE::Kernel::_warn "!!! Leaked session ID: $sid = $ses\n";
+    _warn "!!! Leaked session ID: $sid = $ses\n";
     $finalized_ok = 0;
   }
   while (my ($ses, $sid) = each(%kr_session_to_id)) {
-    POE::Kernel::_warn "!!! Leak sid cross-reference: $ses = $sid\n";
+    _warn "!!! Leak sid cross-reference: $ses = $sid\n";
     $finalized_ok = 0;
   }
   return $finalized_ok;

@@ -2,6 +2,8 @@ package POE::Resource::Events;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 #------------------------------------------------------------------------------
 # Events themselves.
 
@@ -39,12 +41,12 @@ sub _data_ev_finalize {
   my $finalized_ok = 1;
   while (my ($ses, $cnt) = each(%event_count)) {
     $finalized_ok = 0;
-    POE::Kernel::_warn("!!! Leaked event-to count: $ses = $cnt\n");
+    _warn("!!! Leaked event-to count: $ses = $cnt\n");
   }
 
   while (my ($ses, $cnt) = each(%post_count)) {
     $finalized_ok = 0;
-    POE::Kernel::_warn("!!! Leaked event-from count: $ses = $cnt\n");
+    _warn("!!! Leaked event-from count: $ses = $cnt\n");
   }
   return $finalized_ok;
 }
@@ -72,7 +74,7 @@ sub _data_ev_enqueue {
   my $new_id = $self->kr_queue->enqueue($time, $event_to_enqueue);
 
   if (POE::Kernel::TRACE_EVENTS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ev> enqueued event $new_id ``$event'' from ",
       $self->_data_alias_loggable($source_session), " to ",
       $self->_data_alias_loggable($session),
@@ -164,7 +166,7 @@ sub _data_ev_clear_alarm_by_id {
   return unless defined $time;
 
   if (POE::Kernel::TRACE_EVENTS) {
-    POE::Kernel::_warn(
+    _warn(
       "<ev> removed event $id ``", $event->[EV_NAME], "'' to ",
       $self->_data_alias_loggable($session), " at $time"
     );
@@ -233,7 +235,7 @@ sub _data_ev_dispatch_due {
   if (POE::Kernel::TRACE_EVENTS) {
     foreach ($self->kr_queue->peek_items(sub { 1 })) {
       my @event = map { defined() ? $_ : "(undef)" } @{$_->[POE::Queue::Array::ITEM_PAYLOAD()]};
-      POE::Kernel::_warn(
+      _warn(
         "<ev> time($_->[POE::Queue::Array::ITEM_PRIORITY()]) id($_->[POE::Queue::Array::ITEM_ID()]) ",
         "event(@event)\n"
       );
@@ -248,7 +250,7 @@ sub _data_ev_dispatch_due {
     my ($due_time, $id, $event) = $self->kr_queue->dequeue_next();
 
     if (POE::Kernel::TRACE_EVENTS) {
-      POE::Kernel::_warn("<ev> dispatching event $id ($event->[EV_NAME])");
+      _warn("<ev> dispatching event $id ($event->[EV_NAME])");
     }
 
     # An event is "blocked" if its due time is earlier than the

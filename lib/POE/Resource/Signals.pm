@@ -2,6 +2,8 @@ package POE::Resource::Signals;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 use POSIX qw(:sys_wait_h);
 use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
 ### Map watched signal names to the sessions that are watching them
@@ -145,31 +147,31 @@ sub _data_sig_finalize {
 
   while (my ($sig, $sig_rec) = each(%kr_signals)) {
     $finalized_ok = 0;
-    POE::Kernel::_warn "!!! Leaked signal $sig\n";
+    _warn "!!! Leaked signal $sig\n";
     while (my ($ses, $event) = each(%{$kr_signals{$sig}})) {
-      POE::Kernel::_warn "!!!\t$ses = $event\n";
+      _warn "!!!\t$ses = $event\n";
     }
   }
 
   while (my ($ses, $sig_rec) = each(%kr_sessions_to_signals)) {
     $finalized_ok = 0;
-    POE::Kernel::_warn "!!! Leaked signal cross-reference: $ses\n";
+    _warn "!!! Leaked signal cross-reference: $ses\n";
     while (my ($sig, $event) = each(%{$kr_signals{$ses}})) {
-      POE::Kernel::_warn "!!!\t$sig = $event\n";
+      _warn "!!!\t$sig = $event\n";
     }
   }
 
   while (my ($ses, $pid_rec) = each(%kr_sessions_to_pids)) {
     $finalized_ok = 0;
     my @pids = keys %$pid_rec;
-    POE::Kernel::_warn "!!! Leaked session to PID map: $ses -> (@pids)\n";
+    _warn "!!! Leaked session to PID map: $ses -> (@pids)\n";
   }
 
   while (my ($pid, $ses_rec) = each(%kr_pids_to_events)) {
     $finalized_ok = 0;
-    POE::Kernel::_warn "!!! Leaked PID to event map: $pid\n";
+    _warn "!!! Leaked PID to event map: $pid\n";
     while (my ($ses, $event_rec) = each %$ses_rec) {
-      POE::Kernel::_warn "!!!\t$ses -> $event_rec->[PID_EVENT]\n";
+      _warn "!!!\t$ses -> $event_rec->[PID_EVENT]\n";
     }
   }
 
@@ -179,7 +181,7 @@ sub _data_sig_finalize {
     local $!;
     local $?;
     until ((my $pid = waitpid( -1, 0 )) == -1) {
-      POE::Kernel::_warn( "!!! Child process PID:$pid reaped: $!\n" ) if $pid;
+      _warn( "!!! Child process PID:$pid reaped: $!\n" ) if $pid;
       $finalized_ok = 0;
     }
   }
@@ -397,7 +399,7 @@ sub _data_sig_free_terminated_sessions {
     foreach my $dead_session (@kr_signaled_sessions) {
       next unless $self->_data_ses_exists($dead_session);
       if (POE::Kernel::TRACE_SIGNALS) {
-        POE::Kernel::_warn(
+        _warn(
           "<sg> stopping signaled session ",
           $self->_data_alias_loggable($dead_session)
         );
@@ -479,7 +481,7 @@ sub _data_sig_handle_poll_event {
   }
 
   if (POE::Kernel::TRACE_SIGNALS) {
-    POE::Kernel::_warn("<sg> POE::Kernel is polling for signals at " . time() . (POE::Kernel::USE_SIGCHLD ? " due to SIGCHLD" : ""));
+    _warn("<sg> POE::Kernel is polling for signals at " . time() . (POE::Kernel::USE_SIGCHLD ? " due to SIGCHLD" : ""));
   }
 
   # Reap children for as long as waitpid(2) says something
@@ -496,7 +498,7 @@ sub _data_sig_handle_poll_event {
       if (POE::Kernel::RUNNING_IN_HELL or WIFEXITED($?) or WIFSIGNALED($?)) {
 
         if (POE::Kernel::TRACE_SIGNALS) {
-          POE::Kernel::_warn("<sg> POE::Kernel detected SIGCHLD (pid=$pid; exit=$?)");
+          _warn("<sg> POE::Kernel detected SIGCHLD (pid=$pid; exit=$?)");
         }
 
         # Check for explicit SIGCHLD watchers, and enqueue explicit
@@ -522,11 +524,11 @@ sub _data_sig_handle_poll_event {
         );
       }
       elsif (POE::Kernel::TRACE_SIGNALS) {
-        POE::Kernel::_warn("<sg> POE::Kernel detected strange exit (pid=$pid; exit=$?");
+        _warn("<sg> POE::Kernel detected strange exit (pid=$pid; exit=$?");
       }
 
       if (POE::Kernel::TRACE_SIGNALS) {
-        POE::Kernel::_warn("<sg> POE::Kernel will poll again immediately");
+        _warn("<sg> POE::Kernel will poll again immediately");
       }
 
       next;
@@ -545,7 +547,7 @@ sub _data_sig_handle_poll_event {
 
     if ($! == EINTR) {
       if (POE::Kernel::TRACE_SIGNALS) {
-        POE::Kernel::_warn(
+        _warn(
           "<sg> POE::Kernel's waitpid(2) was interrupted.\n",
           "POE::Kernel will poll again immediately.\n"
         );
@@ -560,7 +562,7 @@ sub _data_sig_handle_poll_event {
 
     if ($! == ECHILD) {
       if (POE::Kernel::TRACE_SIGNALS) {
-        POE::Kernel::_warn("<sg> POE::Kernel has no child processes");
+        _warn("<sg> POE::Kernel has no child processes");
       }
       last;
     }
@@ -568,7 +570,7 @@ sub _data_sig_handle_poll_event {
     # Some other error occurred.
 
     if (POE::Kernel::TRACE_SIGNALS) {
-      POE::Kernel::_warn("<sg> POE::Kernel's waitpid(2) got error: $!");
+      _warn("<sg> POE::Kernel's waitpid(2) got error: $!");
     }
     last;
   }
@@ -582,7 +584,7 @@ sub _data_sig_handle_poll_event {
     # The poll loop is over.  Resume slowly polling for signals.
 
     if (POE::Kernel::TRACE_SIGNALS) {
-      POE::Kernel::_warn("<sg> POE::Kernel will poll again after a delay");
+      _warn("<sg> POE::Kernel will poll again after a delay");
     }
 
     if ($polling_for_signals) {

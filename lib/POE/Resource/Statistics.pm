@@ -2,6 +2,8 @@ package POE::Resource::Statistics;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 # We keep a number of metrics (idle time, user time, etc).
 # Every tick (by default 30secs), we compute the rolling average
 # of those metrics. The rolling average is computed based on
@@ -35,7 +37,7 @@ sub _data_stat_finalize {
   $self->_data_stat_tick();
 
   if (POE::Kernel::TRACE_STATISTICS) {
-    POE::Kernel::_warn(
+    _warn(
       '<pr> ,----- Observed Statistics ' , ('-' x 47), ",\n"
     );
 
@@ -43,7 +45,7 @@ sub _data_stat_finalize {
     my %avg = %average;
 
     unless (keys %avg) {
-      POE::Kernel::_warn '<pr> `', ('-' x 73), "'\n";
+      _warn '<pr> `', ('-' x 73), "'\n";
       return;
     }
 
@@ -57,12 +59,12 @@ sub _data_stat_finalize {
 
     foreach (sort keys %avg) {
       next if /epoch/;
-      POE::Kernel::_warn(
+      _warn(
         sprintf "<pr> | %60.60s %9.1f  |\n", $_, $avg{$_}
       );
     }
 
-    POE::Kernel::_warn(
+    _warn(
       '<pr> +----- Derived Statistics ', ('-' x 48), "+\n",
       sprintf(
         "<pr> | %60.60s %9.1f%% |\n",
@@ -181,13 +183,13 @@ sub stat_getprofile {
 }
 
 sub stat_show_profile {
-  POE::Kernel::_warn('<pr> ,----- Event Profile ' , ('-' x 53), ",\n");
+  _warn('<pr> ,----- Event Profile ' , ('-' x 53), ",\n");
   foreach (sort keys %profile) {
-    POE::Kernel::_warn(
+    _warn(
       sprintf "<pr> | %60.60s %9d  |\n", $_, $profile{$_}
     );
   }
-  POE::Kernel::_warn '<pr> `', ('-' x 73), "'\n";
+  _warn '<pr> `', ('-' x 73), "'\n";
 }
 
 1;

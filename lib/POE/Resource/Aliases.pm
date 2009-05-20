@@ -2,6 +2,8 @@ package POE::Resource::Aliases;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 ### The table of session aliases, and the sessions they refer to.
 
 my %kr_aliases;
@@ -27,12 +29,12 @@ sub _data_alias_initialize {
 sub _data_alias_finalize {
   my $finalized_ok = 1;
   while (my ($alias, $ses) = each(%kr_aliases)) {
-    POE::Kernel::_warn "!!! Leaked alias: $alias = $ses\n";
+    _warn "!!! Leaked alias: $alias = $ses\n";
     $finalized_ok = 0;
   }
   while (my ($ses, $alias_rec) = each(%kr_ses_to_alias)) {
     my @aliases = keys(%$alias_rec);
-    POE::Kernel::_warn "!!! Leaked alias cross-reference: $ses (@aliases)\n";
+    _warn "!!! Leaked alias cross-reference: $ses (@aliases)\n";
     $finalized_ok = 0;
   }
   return $finalized_ok;

@@ -2,6 +2,8 @@ package POE::Resource::Extrefs;
 use Moose::Role;
 use strict;
 
+use POE::Helpers::Error qw( _warn );
+
 ### The count of all extra references used in the system.
 
 my %kr_extra_refs;
@@ -18,9 +20,9 @@ sub _data_extref_finalize {
   my $finalized_ok = 1;
   foreach my $session (keys %kr_extra_refs) {
     $finalized_ok = 0;
-    POE::Kernel::_warn "!!! Leaked extref: $session\n";
+    _warn "!!! Leaked extref: $session\n";
     foreach my $tag (keys %{$kr_extra_refs{$session}}) {
-      POE::Kernel::_warn "!!!\t`$tag' = $kr_extra_refs{$session}->{$tag}\n";
+      _warn "!!!\t`$tag' = $kr_extra_refs{$session}->{$tag}\n";
     }
   }
   return $finalized_ok;
@@ -51,7 +53,7 @@ sub _data_extref_inc {
   $self->_data_ses_refcount_inc($session) if $refcount == 1;
 
   if (POE::Kernel::TRACE_REFCNT) {
-    POE::Kernel::_warn(
+    _warn(
       "<rc> incremented extref ``$tag'' (now $refcount) for ",
       $self->_data_alias_loggable($session)
     );
@@ -86,7 +88,7 @@ sub _data_extref_dec {
   my $refcount = --$kr_extra_refs{$session}->{$tag};
 
   if (POE::Kernel::TRACE_REFCNT) {
-    POE::Kernel::_warn(
+    _warn(
       "<rc> decremented extref ``$tag'' (now $refcount) for ",
       $self->_data_alias_loggable($session)
     );
