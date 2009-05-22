@@ -21,112 +21,112 @@ POE::Kernel->run();
 # Strange return values.
 
 eval { $poe_kernel->alarm(undef) };
-ok(
-  $@ && $@ =~ /invalid parameter to alarm/,
+like(
+  $@, qr/invalid parameter to alarm/,
   "alarm with undefined event name"
 );
 
 eval { $poe_kernel->alarm_add(undef) };
-ok(
-  $@ && $@ =~ /invalid parameter to alarm_add/,
+like(
+  $@, qr/invalid parameter to alarm_add/,
   "alarm_add with undefined event name"
 );
 
 eval { $poe_kernel->delay(undef) };
-ok(
-  $@ && $@ =~ /invalid parameter to delay/,
+like(
+  $@, qr/invalid parameter to delay/,
   "delay with undefined event name"
 );
 
 eval { $poe_kernel->delay_add(undef) };
-ok(
-  $@ && $@ =~ /invalid parameter to delay_add/,
+like(
+  $@, qr/invalid parameter to delay_add/,
   "delay_add with undefined event name"
 );
 
 eval { $poe_kernel->ID_id_to_session(999) };
-ok(
-  $@ && $@ =~ /ID does not exist/,
+like(
+  $@, qr/ID does not exist/,
   "ID_id_to_session with unknown ID"
 );
 
 eval { $poe_kernel->ID_session_to_id(999) };
-ok(
-  $@ && $@ =~ /session \(999\) does not exist/,
+like(
+  $@, qr/session \(999\) does not exist/,
   "ID_session_to_id with unknown session"
 );
 
 eval { $poe_kernel->refcount_increment(999) };
-ok(
-  $@ && $@ =~ /session id 999 does not exist/,
+like(
+  $@, qr/session id 999 does not exist/,
   "refcount_increment with unknown session ID"
 );
 
 eval { $poe_kernel->refcount_decrement(999) };
-ok(
-  $@ && $@ =~ /session id 999 does not exist/,
+like(
+  $@, qr/session id 999 does not exist/,
   "refcount_decrement with unknown session ID"
 );
 
 eval { $poe_kernel->state(moo => sub { } ) };
-ok(
-  $@ && $@ =~ /session \(.*?\) does not exist/,
+like(
+  $@, qr/session \(.*?\) does not exist/,
   "state with nonexistent active session"
 );
 
 # Strange usage.
 
 eval { $poe_kernel->alarm_set(undef) };
-ok(
-  $@ && $@ =~ /undefined event name in alarm_set/,
+like(
+  $@, qr/undefined event name in alarm_set/,
   "event undefined in alarm_set"
 );
 
 eval { $poe_kernel->alarm_set(moo => undef) };
-ok(
-  $@ && $@ =~ /undefined time in alarm_set/,
+like(
+  $@, qr/undefined time in alarm_set/,
   "time undefined in alarm_set"
 );
 
 eval { $poe_kernel->alarm_remove(undef) };
-ok(
-  $@ && $@ =~ /undefined alarm id in alarm_remove/,
+like(
+  $@, qr/undefined alarm id in alarm_remove/,
   "alarm ID undefined in alarm_remove"
 );
 
 eval { $poe_kernel->alarm_adjust(undef) };
-ok(
-  $@ && $@ =~ /undefined alarm id in alarm_adjust/,
+like(
+  $@, qr/undefined alarm id in alarm_adjust/,
   "alarm ID undefined in alarm_adjust"
 );
 
 eval { $poe_kernel->alarm_adjust(moo => undef) };
-ok(
-  $@ && $@ =~ /undefined alarm delta in alarm_adjust/,
+like(
+  $@, qr/undefined alarm delta in alarm_adjust/,
   "alarm time undefined in alarm_adjust"
 );
 
 eval { $poe_kernel->delay_set(undef) };
-ok(
-  $@ && $@ =~ /undefined event name in delay_set/,
+like(
+  $@, qr/undefined event name in delay_set/,
   "event name undefined in delay_set"
 );
 
 eval { $poe_kernel->delay_set(moo => undef) };
-ok(
-  $@ && $@ =~ /undefined seconds in delay_set/,
+like(
+  $@, qr/undefined seconds in delay_set/,
   "seconds undefined in delay_set"
 );
 
 eval { $poe_kernel->delay_adjust(undef) };
-ok(
-  $@ && $@ =~ /undefined delay id in delay_adjust/,
+like(
+  $@, qr/undefined delay id in delay_adjust/,
   "delay ID undefined in delay_adjust"
 );
 
 eval { $poe_kernel->delay_adjust(moo => undef) };
-ok(
-  $@ && $@ =~ /undefined delay seconds in delay_adjust/,
+like(
+  $@, qr/undefined delay seconds in delay_adjust/,
   "delay seconds undefined in delay_adjust"
 );
 
@@ -142,14 +142,14 @@ POE::Session->create(
   inline_states => {
     _start => sub {
       eval { $_[KERNEL]->alias_set("moo") };
-      ok(
-        $@ && $@ =~ /alias 'moo' is in use by another session/,
+      like(
+        $@, qr/alias 'moo' is in use by another session/,
         "alias already in use"
       );
 
       eval { $_[KERNEL]->alias_remove("moo") };
-      ok(
-        $@ && $@ =~ /alias does not belong to current session/,
+      like(
+        $@, qr/alias does not belong to current session/,
         "alias belongs to another session"
       );
     }
@@ -157,8 +157,8 @@ POE::Session->create(
 );
 
 eval { $poe_kernel->alias_remove("narf") };
-ok(
-  $@ && $@ =~ /alias does not exist/,
+like(
+  $@, qr/alias does not exist/,
   "alias does not exist"
 );
 
