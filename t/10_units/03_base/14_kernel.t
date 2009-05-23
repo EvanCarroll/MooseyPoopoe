@@ -12,14 +12,14 @@ BEGIN { use_ok("POE::Kernel"); }
 # Start with errors.
 
 eval { POE::Kernel->import( 'foo' ) };
-ok(
-  $@ && $@ =~ /expects its arguments/,
+like(
+  $@, qr/expects its arguments/,
   "fails without a hash ref"
 );
 
 eval { POE::Kernel->import( { foo => "bar" } ) };
-ok(
-  $@ && $@ =~ /import arguments/,
+like(
+  $@, qr/import arguments/,
   "fails with bogus hash ref"
 );
 
