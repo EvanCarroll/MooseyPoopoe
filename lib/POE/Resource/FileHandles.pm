@@ -5,6 +5,7 @@ use strict;
 use POE::Helpers::Error qw( _warn _trap );
 use POE::Helpers::Constants qw(
 	:filehandle
+	:event_index
 	TRACE_FILES TRACE_EVENTS
 	ASSERT_DATA
 	ET_SELECT
@@ -584,7 +585,7 @@ sub _data_handle_remove {
         $self->_data_ev_refcount_dec( @$event[EV_SESSION, EV_SOURCE] );
 
         TRACE_EVENTS and
-          _warn "<ev> removing select event $id ``$event->[POE::Kernel::EV_NAME]''" . Carp::shortmess;
+          _warn "<ev> removing select event $id ``$event->[EV_NAME]''" . Carp::shortmess;
 
         $kr_fno_rec->[FMO_EV_COUNT]--;
 

@@ -3,35 +3,12 @@ use Moose::Role;
 use strict;
 
 use POE::Helpers::Error qw( _warn _trap );
-use POE::Helpers::Constants qw( TRACE_EVENTS ASSERT_DATA ET_ALARM );
-
-use Sub::Exporter -setup => {
-	exports => [qw/
-		EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
-		EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
-	/]
-	, groups => {
-		events => [qw/
-			EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
-			EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
-		/]
-	}
-};
-
-# Events themselves.
-use constant {
-	EV_SESSION      => 0  # $destination_session,
-	, EV_SOURCE     => 1  # $sender_session,
-	, EV_NAME       => 2  # $event_name,
-	, EV_TYPE       => 3  # $event_type,
-	, EV_ARGS       => 4  # \@event_parameters_arg0_etc,
-	# (These fields go towards the end because they are optional in some cases
-	# TODO: Is this still true?)
-	, EV_OWNER_FILE => 5  # $caller_filename_where_enqueued,
-	, EV_OWNER_LINE => 6  # $caller_line_where_enqueued,
-	, EV_TIME       => 7  # Maintained by POE::Queue (create time)
-	, EV_SEQ        => 8  # Maintained by POE::Queue (unique event ID)
-};
+use POE::Helpers::Constants qw(
+	:event_index
+	TRACE_EVENTS
+	ASSERT_DATA
+	ET_ALARM
+);
 
 # A local copy of the queue so we can manipulate it directly.
 my %event_count;

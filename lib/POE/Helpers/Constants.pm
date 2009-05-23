@@ -13,6 +13,8 @@ use Sub::Exporter -setup => {
 		ET_GC  ET_PARENT  ET_CHILD  ET_SCPOLL  ET_ALARM
 		ET_SELECT  ET_STAT  ET_SIGCLD  ET_MASK_USER
 
+		EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
+		EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
 
 		TRACE_DEFAULT TRACE_EVENTS TRACE_FILES TRACE_PROFILE TRACE_REFCNT
 		TRACE_RETVALS TRACE_SESSIONS TRACE_SIGNALS TRACE_STATISTICS TRACE_DESTROY
@@ -39,6 +41,10 @@ use Sub::Exporter -setup => {
 			ET_POST  ET_CALL  ET_START  ET_STOP  ET_SIGNAL
 			ET_GC  ET_PARENT  ET_CHILD  ET_SCPOLL  ET_ALARM
 			ET_SELECT  ET_STAT  ET_SIGCLD  ET_MASK_USER
+		)]
+		, event_index => [qw(
+			EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
+			EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
 		)]
 		, child    => [qw(
 			CHILD_GAIN CHILD_LOSE CHILD_CREATE
@@ -80,6 +86,19 @@ use constant {
 	, EN_START   => '_start'
 	, EN_STAT    => '_stat_tick'
 	, EN_STOP    => '_stop'
+	
+	## EVENTS themselves
+	, EV_SESSION    => 0  # $destination_session,
+	, EV_SOURCE     => 1  # $sender_session,
+	, EV_NAME       => 2  # $event_name,
+	, EV_TYPE       => 3  # $event_type,
+	, EV_ARGS       => 4  # \@event_parameters_arg0_etc,
+	# (These fields go towards the end because they are optional in some cases
+	# TODO: Is this still true?)
+	, EV_OWNER_FILE => 5  # $caller_filename_where_enqueued,
+	, EV_OWNER_LINE => 6  # $caller_line_where_enqueued,
+	, EV_TIME       => 7  # Maintained by POE::Queue (create time)
+	, EV_SEQ        => 8  # Maintained by POE::Queue (unique event ID)
 
 	## These are POE's event classes (types).  They often shadow the event
 	## names themselves, but they can encompass a large group of events.
