@@ -23,9 +23,9 @@ use Sub::Exporter -setup => {
 
 BEGIN {
 	no strict 'refs';
-	if (defined $ENV{TRACE_FILENAME}) {
-		open TRACE_FILE, '>', $ENV{TRACE_FILENAME}
-			or die "can't open trace file `".$ENV{TRACE_FILENAME}."': $!";
+	if (defined $ENV{POE_TRACE_FILENAME}) {
+		open TRACE_FILE, '>', $ENV{POE_TRACE_FILENAME}
+			or die "can't open trace file `".$ENV{POE_TRACE_FILENAME}."': $!";
 		CORE::select((CORE::select(TRACE_FILE), $| = 1)[0]);
 	}
 	else {
