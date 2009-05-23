@@ -30,6 +30,4 @@ ok(
 );
 
 ok( defined($poe_kernel), "POE::Kernel exports $poe_kernel" );
-ok( UNIVERSAL::isa($poe_kernel, "POE::Kernel"), "  which contains a kernel" );
-
-exit 0;
+ok( UNIVERSAL::isa($poe_kernel, "POE::Kernel"), "which contains a kernel" );
