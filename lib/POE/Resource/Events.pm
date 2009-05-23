@@ -2,7 +2,21 @@ package POE::Resource::Events;
 use Moose::Role;
 use strict;
 
-use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Error qw( _warn _trap );
+use POE::Helpers::Constants qw( TRACE_EVENTS ASSERT_DATA ET_ALARM );
+
+use Sub::Exporter -setup => {
+	exports => [qw/
+		EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
+		EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
+	/]
+	, groups => {
+		events => [qw/
+			EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
+			EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
+		/]
+	}
+};
 
 # Events themselves.
 use constant {
@@ -56,9 +70,9 @@ sub _data_ev_enqueue {
     $fromstate, $time
   ) = @_;
 
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     unless ($self->_data_ses_exists($session)) {
-      POE::Kernel::_trap(
+      _trap(
         "<ev> can't enqueue event ``$event'' for nonexistent session $session\n"
       );
     }
@@ -70,7 +84,7 @@ sub _data_ev_enqueue {
   my $old_head_priority = $self->kr_queue->get_next_priority();
   my $new_id = $self->kr_queue->enqueue($time, $event_to_enqueue);
 
-  if (POE::Kernel::TRACE_EVENTS) {
+  if (TRACE_EVENTS) {
     _warn(
       "<ev> enqueued event $new_id ``$event'' from ",
       $self->_data_alias_loggable($source_session), " to ",
@@ -137,7 +151,7 @@ sub _data_ev_clear_alarm_by_name {
   my ($self, $session, $alarm_name) = @_;
 
   my $my_alarm = sub {
-    return 0 unless $_[0]->[EV_TYPE] & POE::Kernel::ET_ALARM;
+    return 0 unless $_[0]->[EV_TYPE] & ET_ALARM;
     return 0 unless $_[0]->[EV_SESSION] == $session;
     return 0 unless $_[0]->[EV_NAME] eq $alarm_name;
     return 1;
@@ -162,7 +176,7 @@ sub _data_ev_clear_alarm_by_id {
   my ($time, $id, $event) = $self->kr_queue->remove_item($alarm_id, $my_alarm);
   return unless defined $time;
 
-  if (POE::Kernel::TRACE_EVENTS) {
+  if (TRACE_EVENTS) {
     _warn(
       "<ev> removed event $id ``", $event->[EV_NAME], "'' to ",
       $self->_data_alias_loggable($session), " at $time"
@@ -179,7 +193,7 @@ sub _data_ev_clear_alarm_by_session {
   my ($self, $session) = @_;
 
   my $my_alarm = sub {
-    return 0 unless $_[0]->[EV_TYPE] & POE::Kernel::ET_ALARM;
+    return 0 unless $_[0]->[EV_TYPE] & ET_ALARM;
     return 0 unless $_[0]->[EV_SESSION] == $session;
     return 1;
   };
@@ -199,9 +213,9 @@ sub _data_ev_clear_alarm_by_session {
 sub _data_ev_refcount_dec {
   my ($self, $source_session, $dest_session) = @_;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap $dest_session unless exists $event_count{$dest_session};
-    POE::Kernel::_trap $source_session unless exists $post_count{$source_session};
+  if (ASSERT_DATA) {
+    _trap $dest_session unless exists $event_count{$dest_session};
+    _trap $source_session unless exists $post_count{$source_session};
   }
 
   $self->_data_ses_refcount_dec($dest_session);
@@ -229,7 +243,7 @@ sub _data_ev_get_count_from {
 sub _data_ev_dispatch_due {
   my $self = shift;
 
-  if (POE::Kernel::TRACE_EVENTS) {
+  if (TRACE_EVENTS) {
     foreach ($self->kr_queue->peek_items(sub { 1 })) {
       my @event = map { defined() ? $_ : "(undef)" } @{$_->[POE::Queue::Array::ITEM_PAYLOAD()]};
       _warn(
@@ -246,7 +260,7 @@ sub _data_ev_dispatch_due {
 
     my ($due_time, $id, $event) = $self->kr_queue->dequeue_next();
 
-    if (POE::Kernel::TRACE_EVENTS) {
+    if (TRACE_EVENTS) {
       _warn("<ev> dispatching event $id ($event->[EV_NAME])");
     }
 

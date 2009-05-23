@@ -2,7 +2,8 @@ package POE::Resource::Extrefs;
 use Moose::Role;
 use strict;
 
-use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Error qw( _warn _trap );
+use POE::Helpers::Constants qw( ASSERT_DATA TRACE_REFCNT );
 
 ### The count of all extra references used in the system.
 
@@ -52,7 +53,7 @@ sub _data_extref_inc {
   # instead of a counter.
   $self->_data_ses_refcount_inc($session) if $refcount == 1;
 
-  if (POE::Kernel::TRACE_REFCNT) {
+  if (TRACE_REFCNT) {
     _warn(
       "<rc> incremented extref ``$tag'' (now $refcount) for ",
       $self->_data_alias_loggable($session)
@@ -72,13 +73,13 @@ sub _data_extref_inc {
 sub _data_extref_dec {
   my ($self, $session, $tag) = @_;
 
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     # Prevents autoviv.
-    POE::Kernel::_trap("<dt> decrementing extref for session without any")
+    _trap("<dt> decrementing extref for session without any")
       unless exists $kr_extra_refs{$session};
 
     unless (exists $kr_extra_refs{$session}->{$tag}) {
-      POE::Kernel::_trap(
+      _trap(
         "<dt> decrementing extref for nonexistent tag ``$tag'' in ",
         $self->_data_alias_loggable($session)
       );
@@ -87,7 +88,7 @@ sub _data_extref_dec {
 
   my $refcount = --$kr_extra_refs{$session}->{$tag};
 
-  if (POE::Kernel::TRACE_REFCNT) {
+  if (TRACE_REFCNT) {
     _warn(
       "<rc> decremented extref ``$tag'' (now $refcount) for ",
       $self->_data_alias_loggable($session)
@@ -103,12 +104,12 @@ sub _data_extref_dec {
 sub _data_extref_remove {
   my ($self, $session, $tag) = @_;
 
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     # Prevents autoviv.
-    POE::Kernel::_trap("<dt> removing extref from session without any")
+    _trap("<dt> removing extref from session without any")
       unless exists $kr_extra_refs{$session};
     unless (exists $kr_extra_refs{$session}->{$tag}) {
-      POE::Kernel::_trap(
+      _trap(
         "<dt> removing extref for nonexistent tag ``$tag'' in ",
         $self->_data_alias_loggable($session)
       );
@@ -126,16 +127,16 @@ sub _data_extref_remove {
 sub _data_extref_clear_session {
   my ($self, $session) = @_;
 
-  # TODO - Should there be a POE::Kernel::_trap here if the session doesn't exist?
+  # TODO - Should there be a _trap here if the session doesn't exist?
 
   return unless exists $kr_extra_refs{$session}; # avoid autoviv
   foreach (keys %{$kr_extra_refs{$session}}) {
     $self->_data_extref_remove($session, $_);
   }
 
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     if (exists $kr_extra_refs{$session}) {
-      POE::Kernel::_trap(
+      _trap(
         "<dt> extref clear did not remove session ",
         $self->_data_alias_loggable($session)
       );
@@ -197,8 +198,3 @@ problem if all entities behave.
 =head1 AUTHORS & COPYRIGHTS
 
 Please see L<POE> for more information about authors and contributors.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

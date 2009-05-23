@@ -3,13 +3,16 @@ use Moose::Role;
 use strict;
 
 use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Constants qw( ASSERT_DATA );
 
 ### Map session IDs to sessions.  Map sessions to session IDs.
 ### Maintain a sequence number for determining the next session ID.
-my %kr_session_ids;
-#  ( $session_id => $session_reference,
-#    ...,
-#  );
+#  ( $session_id => $session_reference, )
+has 'kr_session_ids' => (
+	isa => 'HashRef'
+	, is => 'ro'
+	, default => sub { +{} }
+);
 
 my %kr_session_to_id;
 #  ( $session_ref => $session_id,
@@ -32,14 +35,12 @@ has 'kr_sid_seq' => (
 	}
 );
 
-sub _data_sid_initialize {
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_SESSION_IDS] = \%kr_session_ids;
-}
-
 ### End-run leak checking.
 sub _data_sid_finalize {
+	my $self = shift;
+	my $kr_session_ids = $self->kr_session_ids;
   my $finalized_ok = 1;
-  while (my ($sid, $ses) = each(%kr_session_ids)) {
+  while (my ($sid, $ses) = each(%$kr_session_ids)) {
     _warn "!!! Leaked session ID: $sid = $ses\n";
     $finalized_ok = 0;
   }
@@ -53,7 +54,7 @@ sub _data_sid_finalize {
 ### Set a session ID.
 sub _data_sid_set {
   my ($self, $sid, $session) = @_;
-  $kr_session_ids{$sid} = $session;
+  $self->kr_session_ids->{$sid} = $session;
   $kr_session_to_id{$session} = $sid;
 }
 
@@ -61,16 +62,16 @@ sub _data_sid_set {
 sub _data_sid_clear {
   my ($self, $session) = @_;
   my $sid = delete $kr_session_to_id{$session};
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     POE::Kernel::_trap("SID not defined") unless defined $sid;
   }
-  delete $kr_session_ids{$sid};
+  delete $self->kr_session_ids->{$sid};
 }
 
 ### Resolve a session ID into its session.
 sub _data_sid_resolve {
   my ($self, $sid) = @_;
-  return $kr_session_ids{$sid};
+  return $self->kr_session_ids->{$sid};
 }
 
 1;

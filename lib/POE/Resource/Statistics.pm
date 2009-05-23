@@ -3,6 +3,10 @@ use Moose::Role;
 use strict;
 
 use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Constants qw(
+	TRACE_STATISTICS TRACE_PROFILE
+	EN_STAT ET_STAT
+);
 
 # We keep a number of metrics (idle time, user time, etc).
 # Every tick (by default 30secs), we compute the rolling average
@@ -16,7 +20,7 @@ my $_stat_wpos        = 0;  # where to currently write metrics (circ. buffer)
 my $_stat_rpos        = 0;  # where to currently write metrics (circ. buffer)
 my %average;
 
-# This is for collecting event frequencies if POE::Kernel::TRACE_PROFILE is
+# This is for collecting event frequencies if TRACE_PROFILE is
 # enabled.
 my %profile;
 
@@ -27,7 +31,7 @@ sub _data_stat_initialize {
   my ($self) = @_;
   $self->_data_stat_reset;
   $self->_data_ev_enqueue(
-    $self, $self, POE::Kernel::EN_STAT, POE::Kernel::ET_STAT, [ ],
+    $self, $self, EN_STAT, ET_STAT, [ ],
     __FILE__, __LINE__, undef, time() + $_stat_interval
   );
 }
@@ -36,7 +40,7 @@ sub _data_stat_finalize {
   my ($self) = @_;
   $self->_data_stat_tick();
 
-  if (POE::Kernel::TRACE_STATISTICS) {
+  if (TRACE_STATISTICS) {
     _warn(
       '<pr> ,----- Observed Statistics ' , ('-' x 47), ",\n"
     );
@@ -86,7 +90,7 @@ sub _data_stat_finalize {
     );
   }
 
-  if (POE::Kernel::TRACE_PROFILE) {
+  if (TRACE_PROFILE) {
     stat_show_profile();
   }
 }
@@ -128,7 +132,7 @@ sub _data_stat_tick {
 
   $self->_data_stat_reset;
   $self->_data_ev_enqueue(
-    $self, $self, POE::Kernel::EN_STAT, POE::Kernel::ET_STAT, [ ],
+    $self, $self, EN_STAT, ET_STAT, [ ],
     __FILE__, __LINE__, undef, time() + $_stat_interval
   ) if $self->_data_ses_count() > 1;
 }
@@ -168,7 +172,7 @@ sub stat_getprofile {
   my ($self, $session) = @_;
 
   # Nothing to do if tracing is off.  But someone may call this anyway.
-  return unless POE::Kernel::TRACE_PROFILE;
+  return unless TRACE_PROFILE;
 
   # Return global profile if session isn't specified.
   return %profile unless defined $session;

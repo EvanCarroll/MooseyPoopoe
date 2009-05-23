@@ -2,7 +2,8 @@ package POE::Resource::Aliases;
 use Moose::Role;
 use strict;
 
-use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Error qw( _warn _trap );
+use POE::Helpers::Constants qw( ASSERT_DATA );
 
 ### The table of session aliases, and the sessions they refer to.
 
@@ -20,7 +21,7 @@ my %kr_ses_to_alias;
 #  );
 
 sub _data_alias_initialize {
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_ALIASES] = \%kr_aliases;
+  $POE::Kernel::poe_kernel->[POE::Kernel::KR_ALIASES()] = \%kr_aliases;
 }
 
 ### End-run leak checking.  Returns true if finalization was ok, or
@@ -111,8 +112,8 @@ sub _data_alias_count_ses {
 sub _data_alias_loggable {
   my ($self, $session) = @_;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap unless ref($session);
+  if (ASSERT_DATA) {
+    _trap unless ref($session);
   }
 
   "session " . $session->ID . " (" .
@@ -158,8 +159,3 @@ None known.
 =head1 AUTHORS & COPYRIGHTS
 
 Please see L<POE> for more information about authors and contributors.
-
-=cut
-
-# rocco // vim: ts=2 sw=2 expandtab
-# TODO - Edit.

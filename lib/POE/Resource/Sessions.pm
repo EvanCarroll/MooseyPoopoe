@@ -2,9 +2,13 @@ package POE::Resource::Sessions;
 use Moose::Role;
 use strict;
 
-use POE::Helpers::Error qw( _warn _cluck _carp );
+use POE::Helpers::Error qw( _warn _cluck _carp _trap );
 
-use POE::Helpers::Constants qw( :events :child );
+use POE::Helpers::Constants qw(
+	TRACE_PROFILE TRACE_SESSIONS TRACE_REFCNT
+	ASSERT_DATA
+	:events :child
+);
 use MooseX::AttributeHelpers;
 
 has 'kr_sessions' => (
@@ -55,10 +59,10 @@ sub _data_ses_allocate {
   my ($self, $session, $sid, $parent) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA and defined($parent)) {
-    POE::Kernel::_trap "parent $parent does not exist"
+  if (ASSERT_DATA and defined($parent)) {
+    _trap "parent $parent does not exist"
       unless exists $kr_sessions->{$parent};
-    POE::Kernel::_trap "session $session is already allocated"
+    _trap "session $session is already allocated"
       if exists $kr_sessions->{$session};
   }
 
@@ -76,7 +80,7 @@ sub _data_ses_allocate {
 
   # Manage parent/child relationship.
   if (defined $parent) {
-    if (POE::Kernel::TRACE_SESSIONS) {
+    if (TRACE_SESSIONS) {
       _warn(
         "<ss> ",
         $self->_data_alias_loggable($session), " has parent ",
@@ -101,7 +105,7 @@ sub _data_ses_free {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn(
       "<ss> freeing ",
       $self->_data_alias_loggable($session)
@@ -114,14 +118,14 @@ sub _data_ses_free {
   my @children = $self->_data_ses_get_children($session);
 
   if (defined $parent) {
-    if (POE::Kernel::ASSERT_DATA) {
-      POE::Kernel::_trap "session is its own parent"
+    if (ASSERT_DATA) {
+      _trap "session is its own parent"
         if $parent == $session;
-      POE::Kernel::_trap "session's parent ($parent) doesn't exist"
+      _trap "session's parent ($parent) doesn't exist"
         unless exists $kr_sessions->{$parent};
 
       unless ($self->_data_ses_is_child($parent, $session)) {
-        POE::Kernel::_trap(
+        _trap(
           $self->_data_alias_loggable($session), " isn't a child of ",
           $self->_data_alias_loggable($parent), " (it's a child of ",
           $self->_data_alias_loggable($self->_data_ses_get_parent($session)),
@@ -132,12 +136,12 @@ sub _data_ses_free {
 
     # Remove the departing session from its parent.
 
-    POE::Kernel::_trap "internal inconsistency ($parent/$session)"
+    _trap "internal inconsistency ($parent/$session)"
       unless delete $kr_sessions->{$parent}->[SS_CHILDREN]->{$session};
 
     undef $kr_sessions->{$session}->[SS_PARENT];
 
-    if (POE::Kernel::TRACE_SESSIONS) {
+    if (TRACE_SESSIONS) {
       _cluck(
         "<ss> removed ",
         $self->_data_alias_loggable($session), " from ",
@@ -153,8 +157,8 @@ sub _data_ses_free {
       $self->_data_ses_move_child($_, $parent)
     }
   }
-  elsif (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap "no parent to give children to" if @children;
+  elsif (ASSERT_DATA) {
+    _trap "no parent to give children to" if @children;
   }
 
   # Things which do not hold reference counts.
@@ -169,7 +173,7 @@ sub _data_ses_free {
   $self->_data_handle_clear_session($session); # Remove all leftover handles.
   $self->_data_ev_clear_session($session);     # Remove all leftover events.
 
-  if (POE::Kernel::TRACE_PROFILE) {
+  if (TRACE_PROFILE) {
     $self->_data_stat_clear_session($session);
   }
 
@@ -184,14 +188,14 @@ sub _data_ses_move_child {
   my ($self, $session, $new_parent) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("moving nonexistent child to another parent")
+  if (ASSERT_DATA) {
+    _trap("moving nonexistent child to another parent")
       unless exists $kr_sessions->{$session};
-    POE::Kernel::_trap("moving child to a nonexistent parent")
+    _trap("moving child to a nonexistent parent")
       unless exists $kr_sessions->{$new_parent};
   }
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn(
       "<ss> moving ",
       $self->_data_alias_loggable($session), " to ",
@@ -201,15 +205,15 @@ sub _data_ses_move_child {
 
   my $old_parent = $self->_data_ses_get_parent($session);
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("moving child from a nonexistent parent")
+  if (ASSERT_DATA) {
+    _trap("moving child from a nonexistent parent")
       unless exists $kr_sessions->{$old_parent};
   }
 
   # Remove the session from its old parent.
   delete $kr_sessions->{$old_parent}->[SS_CHILDREN]->{$session};
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn(
       "<ss> removed ",
       $self->_data_alias_loggable($session), " from ",
@@ -222,7 +226,7 @@ sub _data_ses_move_child {
   # Change the session's parent.
   $kr_sessions->{$session}->[SS_PARENT] = $new_parent;
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn(
       "<ss> changed parent of ",
       $self->_data_alias_loggable($session), " to ",
@@ -233,7 +237,7 @@ sub _data_ses_move_child {
   # Add the current session to the new parent's children.
   $kr_sessions->{$new_parent}->[SS_CHILDREN]->{$session} = $session;
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn(
       "<ss> added ",
       $self->_data_alias_loggable($session), " as child of ",
@@ -255,8 +259,8 @@ sub _data_ses_move_child {
 sub _data_ses_get_parent {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("retrieving parent of a nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("retrieving parent of a nonexistent session")
       unless exists $kr_sessions->{$session};
   }
   return $kr_sessions->{$session}->[SS_PARENT];
@@ -267,8 +271,8 @@ sub _data_ses_get_parent {
 sub _data_ses_get_children {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("retrieving children of a nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("retrieving children of a nonexistent session")
       unless exists $kr_sessions->{$session};
   }
   return values %{$kr_sessions->{$session}->[SS_CHILDREN]};
@@ -280,8 +284,8 @@ sub _data_ses_is_child {
   my ($self, $parent, $child) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("testing is-child of a nonexistent parent session")
+  if (ASSERT_DATA) {
+    _trap("testing is-child of a nonexistent parent session")
       unless exists $kr_sessions->{$parent};
   }
   return exists $kr_sessions->{$parent}->[SS_CHILDREN]->{$child};
@@ -314,12 +318,12 @@ sub _data_ses_refcount_dec {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("decrementing refcount of a nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("decrementing refcount of a nonexistent session")
       unless exists $kr_sessions->{$session};
   }
 
-  if (POE::Kernel::TRACE_REFCNT) {
+  if (TRACE_REFCNT) {
     _warn(
       "<rc> decrementing refcount for ",
       $self->_data_alias_loggable($session)
@@ -328,8 +332,8 @@ sub _data_ses_refcount_dec {
 
   $kr_sessions->{$session}->[SS_REFCOUNT]--;
 
-  if (POE::Kernel::ASSERT_DATA and $kr_sessions->{$session}->[SS_REFCOUNT] < 0) {
-    POE::Kernel::_trap(
+  if (ASSERT_DATA and $kr_sessions->{$session}->[SS_REFCOUNT] < 0) {
+    _trap(
       $self->_data_alias_loggable($session),
      " reference count went below zero"
    );
@@ -342,12 +346,12 @@ sub _data_ses_refcount_inc {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("incrementing refcount for nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("incrementing refcount for nonexistent session")
       unless exists $kr_sessions->{$session};
   }
 
-  if (POE::Kernel::TRACE_REFCNT) {
+  if (TRACE_REFCNT) {
     _warn(
       "<rc> incrementing refcount for ",
       $self->_data_alias_loggable($session)
@@ -370,12 +374,12 @@ sub _data_ses_collect_garbage {
   my ($self, $session) = @_;
 	my $kr_sessions = $self->kr_sessions;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("collecting garbage for a nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("collecting garbage for a nonexistent session")
       unless exists $kr_sessions->{$session};
   }
 
-  if (POE::Kernel::TRACE_REFCNT) {
+  if (TRACE_REFCNT) {
     my $ss = $kr_sessions->{$session};
     _warn(
       "<rc> +----- GC test for ", $self->_data_alias_loggable($session),
@@ -400,7 +404,7 @@ sub _data_ses_collect_garbage {
     _carp "<rc> | called";
   }
 
-  if (POE::Kernel::ASSERT_DATA) {
+  if (ASSERT_DATA) {
     my $ss = $kr_sessions->{$session};
     my $calc_ref = (
       $self->_data_ev_get_count_to($session) +
@@ -415,7 +419,7 @@ sub _data_ses_collect_garbage {
     # The calculated reference count really ought to match the one
     # POE's been keeping track of all along.
 
-    POE::Kernel::_trap(
+    _trap(
       "<dt> ", $self->_data_alias_loggable($session),
        " has a reference count inconsistency",
        " (calc=$calc_ref; actual=$ss->[SS_REFCOUNT])\n"
@@ -447,12 +451,12 @@ sub _data_ses_stop {
   return if exists $already_stopping{$session};
   $already_stopping{$session} = 1;
 
-  if (POE::Kernel::ASSERT_DATA) {
-    POE::Kernel::_trap("stopping a nonexistent session")
+  if (ASSERT_DATA) {
+    _trap("stopping a nonexistent session")
       unless exists $kr_sessions->{$session};
   }
 
-  if (POE::Kernel::TRACE_SESSIONS) {
+  if (TRACE_SESSIONS) {
     _warn("<ss> stopping ", $self->_data_alias_loggable($session));
   }
 

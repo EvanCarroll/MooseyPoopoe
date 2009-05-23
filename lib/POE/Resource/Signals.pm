@@ -2,14 +2,30 @@ package POE::Resource::Signals;
 use Moose::Role;
 use strict;
 
-use POE::Helpers::Error qw( _warn );
+use POE::Helpers::Error qw( _warn _trap );
+use POE::Helpers::Constants qw(
+	TRACE_SIGNALS
+	USE_SIGCHLD
+	RUNNING_IN_HELL
+	EN_SCPOLL
+	ET_SCPOLL
+	EN_SIGNAL
+	ET_SIGNAL
+	ET_SIGCLD
+);
 
 use POSIX qw(:sys_wait_h);
 use Errno qw(ESRCH EINTR ECHILD EPERM EINVAL EEXIST EAGAIN EWOULDBLOCK);
 ### Map watched signal names to the sessions that are watching them
 ### and the events that must be delivered when they occur.
 
-my %kr_signals;
+has [qw/kr_signals kr_pids_to_events/] => (
+	isa  => 'HashRef'
+	, is => 'ro'
+	, default => sub { +{} }
+);
+
+#my %kr_signals;
 #  ( $signal_name =>
 #    { $session_reference => $event_name,
 #      ...,
@@ -25,7 +41,7 @@ my %kr_sessions_to_signals;
 #    ...,
 #  );
 
-my %kr_pids_to_events;
+#my %kr_pids_to_events;
 # { $pid =>
 #   { $session =>
 #     [ $blessed_session,   # PID_SESSION
@@ -57,7 +73,7 @@ use vars (
 my $polling_for_signals = 0;
 
 # A flag determining whether there are child processes.
-my $kr_child_procs = exists($INC{'Apache.pm'}) ? 0 : ( POE::Kernel::USE_SIGCHLD ? 0 : 1 );
+my $kr_child_procs = exists($INC{'Apache.pm'}) ? 0 : ( USE_SIGCHLD ? 0 : 1 );
 
 # A list of special signal types.  Signals that aren't listed here are
 # benign (they do not kill sessions at all).  "Terminal" signals are
@@ -93,10 +109,7 @@ sub _data_sig_initialize {
   # Initialize this to a true value so our waitpid() loop can run at
   # least once.  Starts false when running in an Apache handler so our
   # SIGCHLD hijinks don't interfere with the web server.
-  $kr_child_procs = exists($INC{'Apache.pm'}) ? 0 : ( POE::Kernel::USE_SIGCHLD ? 0 : 1 );
-
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_SIGNALS] = \%kr_signals;
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_PIDS]    = \%kr_pids_to_events;
+  $kr_child_procs = exists($INC{'Apache.pm'}) ? 0 : ( USE_SIGCHLD ? 0 : 1 );
 
   # In case we're called multiple times.
   unless (keys %_safe_signals) {
@@ -117,7 +130,7 @@ sub _data_sig_initialize {
 
       # Windows doesn't have a SIGBUS, but the debugger causes SIGBUS
       # to be entered into %SIG.  It's fatal to register its handler.
-      next if $signal eq 'BUS' and POE::Kernel::RUNNING_IN_HELL;
+      next if $signal eq 'BUS' and RUNNING_IN_HELL;
 
       # Apache uses SIGCHLD and/or SIGCLD itself, so we can't.
       next if $signal =~ /^CH?LD$/ and exists $INC{'Apache.pm'};
@@ -143,12 +156,15 @@ sub _data_sig_get_safe_signals {
 ### End-run leak checking.
 
 sub _data_sig_finalize {
-  my $finalized_ok = 1;
+	my $self = shift;
 
-  while (my ($sig, $sig_rec) = each(%kr_signals)) {
+  my $finalized_ok = 1;
+	my $kr_signals = $self->kr_signals;
+
+  while (my ($sig, $sig_rec) = each(%$kr_signals)) {
     $finalized_ok = 0;
     _warn "!!! Leaked signal $sig\n";
-    while (my ($ses, $event) = each(%{$kr_signals{$sig}})) {
+    while (my ($ses, $event) = each(%{$kr_signals->{$sig}})) {
       _warn "!!!\t$ses = $event\n";
     }
   }
@@ -156,7 +172,7 @@ sub _data_sig_finalize {
   while (my ($ses, $sig_rec) = each(%kr_sessions_to_signals)) {
     $finalized_ok = 0;
     _warn "!!! Leaked signal cross-reference: $ses\n";
-    while (my ($sig, $event) = each(%{$kr_signals{$ses}})) {
+    while (my ($sig, $event) = each(%{$kr_signals->{$ses}})) {
       _warn "!!!\t$sig = $event\n";
     }
   }
@@ -167,7 +183,7 @@ sub _data_sig_finalize {
     _warn "!!! Leaked session to PID map: $ses -> (@pids)\n";
   }
 
-  while (my ($pid, $ses_rec) = each(%kr_pids_to_events)) {
+  while (my ($pid, $ses_rec) = each( %{$self->kr_pids_to_events}) ) {
     $finalized_ok = 0;
     _warn "!!! Leaked PID to event map: $pid\n";
     while (my ($ses, $event_rec) = each %$ses_rec) {
@@ -177,7 +193,7 @@ sub _data_sig_finalize {
 
   %_safe_signals = ();
 
-  unless (POE::Kernel::RUNNING_IN_HELL) {
+  unless (RUNNING_IN_HELL) {
     local $!;
     local $?;
     until ((my $pid = waitpid( -1, 0 )) == -1) {
@@ -196,7 +212,7 @@ sub _data_sig_add {
 
   $kr_sessions_to_signals{$session}->{$signal} = $event;
   $self->_data_sig_signal_watch($session, $signal);
-  $kr_signals{$signal}->{$session} = $event;
+  $self->kr_signals->{$signal}->{$session} = $event;
 }
 
 sub _data_sig_signal_watch {
@@ -205,7 +221,7 @@ sub _data_sig_signal_watch {
   # First session to watch the signal.
   # Ask the event loop to watch the signal.
   if (
-    !exists($kr_signals{$signal}) and
+    !exists($self->kr_signals->{$signal}) and
     exists($_safe_signals{$signal}) and
     ($signal ne "CHLD" or !scalar(keys %kr_sessions_to_pids))
   ) {
@@ -217,7 +233,7 @@ sub _data_sig_signal_ignore {
   my ($self, $session, $signal) = @_;
 
   if (
-    !exists($kr_signals{$signal}) and
+    !exists($self->kr_signals->{$signal}) and
     exists($_safe_signals{$signal}) and
     ($signal ne "CHLD" or !scalar(keys %kr_sessions_to_pids))
   ) {
@@ -229,16 +245,17 @@ sub _data_sig_signal_ignore {
 
 sub _data_sig_remove {
   my ($self, $session, $signal) = @_;
+	my $kr_signals = $self->kr_signals;
 
   delete $kr_sessions_to_signals{$session}->{$signal};
   delete $kr_sessions_to_signals{$session}
     unless keys(%{$kr_sessions_to_signals{$session}});
 
-  delete $kr_signals{$signal}->{$session};
+  delete $kr_signals->{$signal}->{$session};
 
   # Last watcher for that signal.  Stop watching it internally.
-  unless (keys %{$kr_signals{$signal}}) {
-    delete $kr_signals{$signal};
+  unless (keys %{$kr_signals->{$signal}}) {
+    delete $kr_signals->{$signal};
     $self->_data_sig_signal_ignore($session, $signal);
   }
 }
@@ -270,7 +287,7 @@ sub _data_sig_clear_session {
 sub _data_sig_pid_watch {
   my ($self, $session, $pid, $event) = @_;
 
-  $kr_pids_to_events{$pid}{$session} = [
+  $self->kr_pids_to_events->{$pid}{$session} = [
     $session, # PID_SESSION
     $event,   # PID_EVENT
   ];
@@ -283,12 +300,13 @@ sub _data_sig_pid_watch {
 
 sub _data_sig_pid_ignore {
   my ($self, $session, $pid) = @_;
+	my $kr_pids_to_events = $self->kr_pids_to_events;
 
   # Remove PID to event mapping.
 
-  delete $kr_pids_to_events{$pid}{$session};
-  delete $kr_pids_to_events{$pid} unless (
-    keys %{$kr_pids_to_events{$pid}}
+  delete $kr_pids_to_events->{$pid}{$session};
+  delete $kr_pids_to_events->{$pid} unless (
+    keys %{$kr_pids_to_events->{$pid}}
   );
 
   # Remove session to PID mapping.
@@ -342,8 +360,7 @@ sub _data_sig_reset_handled {
 ### Is the signal explicitly watched?
 
 sub _data_sig_explicitly_watched {
-  my ($self, $signal) = @_;
-  return exists $kr_signals{$signal};
+  return exists $_[0]->kr_signals->{$_[1]};
 }
 
 ### Return the signals watched by a session and the events they
@@ -358,8 +375,7 @@ sub _data_sig_watched_by_session {
 ### Which sessions are watching a signal?
 
 sub _data_sig_watchers {
-  my ($self, $signal) = @_;
-  return %{$kr_signals{$signal}};
+  return %{  $_[0]->kr_signals->{$_[1]}  };
 }
 
 ### Return the current signal's handled status.
@@ -379,9 +395,10 @@ sub _data_sig_handled_status {
 
 sub _data_sig_is_watched_by_session {
   my ($self, $signal, $session) = @_;
+	my $kr_signals = $self->kr_signals;
   return(
-    exists($kr_signals{$signal}) &&
-    exists($kr_signals{$signal}->{$session})
+    exists($kr_signals->{$signal}) &&
+    exists($kr_signals->{$signal}->{$session})
   );
 }
 
@@ -398,7 +415,7 @@ sub _data_sig_free_terminated_sessions {
   ) {
     foreach my $dead_session (@kr_signaled_sessions) {
       next unless $self->_data_ses_exists($dead_session);
-      if (POE::Kernel::TRACE_SIGNALS) {
+      if (TRACE_SIGNALS) {
         _warn(
           "<sg> stopping signaled session ",
           $self->_data_alias_loggable($dead_session)
@@ -454,12 +471,12 @@ sub _data_sig_cease_polling {
 sub _data_sig_enqueue_poll_event {
   my $self = shift;
 
-  if ( POE::Kernel::USE_SIGCHLD ) {
+  if ( USE_SIGCHLD ) {
     return if $polling_for_signals;
     $polling_for_signals = 1;
 
     $self->_data_ev_enqueue(
-      $self, $self, POE::Kernel::EN_SCPOLL, POE::Kernel::ET_SCPOLL, [ ],
+      $self, $self, EN_SCPOLL, ET_SCPOLL, [ ],
       __FILE__, __LINE__, undef, time(),
     );
   } else {
@@ -467,7 +484,7 @@ sub _data_sig_enqueue_poll_event {
     return unless $polling_for_signals;
 
     $self->_data_ev_enqueue(
-      $self, $self, POE::Kernel::EN_SCPOLL, POE::Kernel::ET_SCPOLL, [ ],
+      $self, $self, EN_SCPOLL, ET_SCPOLL, [ ],
       __FILE__, __LINE__, undef, time() + POE::Kernel::CHILD_POLLING_INTERVAL(),
     );
   }
@@ -475,13 +492,14 @@ sub _data_sig_enqueue_poll_event {
 
 sub _data_sig_handle_poll_event {
   my $self = shift;
+	my $kr_pids_to_events = $self->kr_pids_to_events;
 
-  if ( POE::Kernel::USE_SIGCHLD ) {
+  if ( USE_SIGCHLD ) {
     $polling_for_signals = undef;
   }
 
-  if (POE::Kernel::TRACE_SIGNALS) {
-    _warn("<sg> POE::Kernel is polling for signals at " . time() . (POE::Kernel::USE_SIGCHLD ? " due to SIGCHLD" : ""));
+  if (TRACE_SIGNALS) {
+    _warn("<sg> POE::Kernel is polling for signals at " . time() . (USE_SIGCHLD ? " due to SIGCHLD" : ""));
   }
 
   # Reap children for as long as waitpid(2) says something
@@ -494,21 +512,21 @@ sub _data_sig_handle_poll_event {
     # waitpid(2) returned a process ID.  Emit an appropriate SIGCHLD
     # event and loop around again.
 
-    if ((POE::Kernel::RUNNING_IN_HELL and $pid < -1) or ($pid > 0)) {
-      if (POE::Kernel::RUNNING_IN_HELL or WIFEXITED($?) or WIFSIGNALED($?)) {
+    if ((RUNNING_IN_HELL and $pid < -1) or ($pid > 0)) {
+      if (RUNNING_IN_HELL or WIFEXITED($?) or WIFSIGNALED($?)) {
 
-        if (POE::Kernel::TRACE_SIGNALS) {
+        if (TRACE_SIGNALS) {
           _warn("<sg> POE::Kernel detected SIGCHLD (pid=$pid; exit=$?)");
         }
 
         # Check for explicit SIGCHLD watchers, and enqueue explicit
         # events for them.
 
-        if (exists $kr_pids_to_events{$pid}) {
+        if (exists $kr_pids_to_events->{$pid}) {
           my @sessions_to_clear;
-          while (my ($ses_key, $ses_rec) = each %{$kr_pids_to_events{$pid}}) {
+          while (my ($ses_key, $ses_rec) = each %{$kr_pids_to_events->{$pid}}) {
             $self->_data_ev_enqueue(
-              $ses_rec->[PID_SESSION], $self, $ses_rec->[PID_EVENT], POE::Kernel::ET_SIGCLD,
+              $ses_rec->[PID_SESSION], $self, $ses_rec->[PID_EVENT], ET_SIGCLD,
               [ 'CHLD', $pid, $? ],
               __FILE__, __LINE__, undef, time(),
             );
@@ -519,15 +537,15 @@ sub _data_sig_handle_poll_event {
 
         # Kick off a SIGCHLD cascade.
         $self->_data_ev_enqueue(
-          $self, $self, POE::Kernel::EN_SIGNAL, POE::Kernel::ET_SIGNAL, [ 'CHLD', $pid, $? ],
+          $self, $self, EN_SIGNAL, ET_SIGNAL, [ 'CHLD', $pid, $? ],
           __FILE__, __LINE__, undef, time(),
         );
       }
-      elsif (POE::Kernel::TRACE_SIGNALS) {
+      elsif (TRACE_SIGNALS) {
         _warn("<sg> POE::Kernel detected strange exit (pid=$pid; exit=$?");
       }
 
-      if (POE::Kernel::TRACE_SIGNALS) {
+      if (TRACE_SIGNALS) {
         _warn("<sg> POE::Kernel will poll again immediately");
       }
 
@@ -540,13 +558,13 @@ sub _data_sig_handle_poll_event {
     #
     # TODO - Find a way to test this.
 
-    POE::Kernel::_trap "internal consistency error: waitpid returned $pid"
+    _trap "internal consistency error: waitpid returned $pid"
     if $pid != -1;
 
     # If the error is an interrupted syscall, poll again right away.
 
     if ($! == EINTR) {
-      if (POE::Kernel::TRACE_SIGNALS) {
+      if (TRACE_SIGNALS) {
         _warn(
           "<sg> POE::Kernel's waitpid(2) was interrupted.\n",
           "POE::Kernel will poll again immediately.\n"
@@ -561,7 +579,7 @@ sub _data_sig_handle_poll_event {
     # could restart polling when processes are forked.
 
     if ($! == ECHILD) {
-      if (POE::Kernel::TRACE_SIGNALS) {
+      if (TRACE_SIGNALS) {
         _warn("<sg> POE::Kernel has no child processes");
       }
       last;
@@ -569,7 +587,7 @@ sub _data_sig_handle_poll_event {
 
     # Some other error occurred.
 
-    if (POE::Kernel::TRACE_SIGNALS) {
+    if (TRACE_SIGNALS) {
       _warn("<sg> POE::Kernel's waitpid(2) got error: $!");
     }
     last;
@@ -580,10 +598,10 @@ sub _data_sig_handle_poll_event {
   $kr_child_procs = !$pid;
 
 
-  unless ( POE::Kernel::USE_SIGCHLD ) {
+  unless ( USE_SIGCHLD ) {
     # The poll loop is over.  Resume slowly polling for signals.
 
-    if (POE::Kernel::TRACE_SIGNALS) {
+    if (TRACE_SIGNALS) {
       _warn("<sg> POE::Kernel will poll again after a delay");
     }
 
@@ -601,7 +619,7 @@ sub _data_sig_handle_poll_event {
 # TODO - Will this change?
 
 sub _data_sig_child_procs {
-  return if !POE::Kernel::USE_SIGCHLD and !$polling_for_signals;
+  return if !USE_SIGCHLD and !$polling_for_signals;
   return $kr_child_procs;
 }
 
