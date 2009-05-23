@@ -8,7 +8,7 @@ use strict;
 # shrink the distribution.  Yay!
 
 use POE::Helpers::Constants qw(
-	TRACE_SIGNALS EN_SIGNAL ET_SIGNAL
+	TRACE_SIGNALS EN_SIGNAL ET_SIGNAL USE_SIGCHLD
 );
 use POE::Helpers::Error qw( _warn );
 
@@ -63,7 +63,7 @@ sub loop_watch_signal {
 
   # Child process has stopped.
   if ($signal eq 'CHLD' or $signal eq 'CLD') {
-    if ( POE::Kernel::USE_SIGCHLD() ) {
+    if ( USE_SIGCHLD ) {
       # install, but also trigger once
       # there may be a race condition between forking, and $kernel->sig_chld in
       # which the signal is already delivered
@@ -96,7 +96,7 @@ sub loop_ignore_signal {
   delete $signal_watched{$signal};
 
     if ($signal eq 'CHLD' or $signal eq 'CLD') {
-    if ( POE::Kernel::USE_SIGCHLD() ) {
+    if ( USE_SIGCHLD() ) {
       if( $self->_data_sig_child_procs) {
         # We need SIGCHLD to stay around after shutdown, so that
         # child processes may be reaped and kr_child_procs=0

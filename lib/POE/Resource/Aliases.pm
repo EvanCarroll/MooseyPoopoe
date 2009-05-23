@@ -3,7 +3,7 @@ use Moose::Role;
 use strict;
 
 use POE::Helpers::Error qw( _warn _trap );
-use POE::Helpers::Constants qw( ASSERT_DATA );
+use POE::Helpers::Constants qw( ASSERT_DATA KR_ALIASES );
 
 ### The table of session aliases, and the sessions they refer to.
 
@@ -21,7 +21,7 @@ my %kr_ses_to_alias;
 #  );
 
 sub _data_alias_initialize {
-  $POE::Kernel::poe_kernel->[POE::Kernel::KR_ALIASES()] = \%kr_aliases;
+  $POE::Kernel::poe_kernel->[KR_ALIASES] = \%kr_aliases;
 }
 
 ### End-run leak checking.  Returns true if finalization was ok, or
