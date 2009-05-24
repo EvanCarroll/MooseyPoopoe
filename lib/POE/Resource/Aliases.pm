@@ -3,7 +3,7 @@ use Moose::Role;
 use strict;
 
 use POE::Helpers::Error qw( _warn _trap );
-use POE::Helpers::Constants qw( ASSERT_DATA KR_ALIASES );
+use POE::Helpers::Constants qw( ASSERT_DATA );
 
 ### The table of session aliases, and the sessions they refer to.
 
