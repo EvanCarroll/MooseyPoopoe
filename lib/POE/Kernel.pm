@@ -51,7 +51,7 @@ sub import {
 		if $args && ref($args) ne 'HASH'
 	;
 
-	my %validated = $args->{loop} ? (loop => delete $args->{loop}) : ();
+	my %validated = exists $args->{loop} ? (loop => delete $args->{loop}) : ();
 	Carp::croak "Unknown POE::Kernel import arguments: " . (join ',', keys %$args)
 		if %$args
 	;
@@ -62,7 +62,7 @@ sub import {
     *{ $package . '::poe_main_window' } = \$poe_main_window;
   }
 	
-	POE::Kernel->new;
+	POE::Kernel->new(\%validated);
 
 }
 
