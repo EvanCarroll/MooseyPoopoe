@@ -491,7 +491,6 @@ sub BUILD {
     $self->_initialize_kernel_session();
     $self->_data_stat_initialize() if TRACE_STATISTICS;
     $self->_data_sig_initialize();
-    $self->_data_alias_initialize();
 
     # These other subsystems don't have strange interactions.
     $self->_data_handle_initialize($self->kr_queue);

@@ -7,10 +7,16 @@ use POE::Helpers::Constants qw( ASSERT_DATA KR_ALIASES );
 
 ### The table of session aliases, and the sessions they refer to.
 
-my %kr_aliases;
-#  ( $alias => $session_ref,
-#    ...,
-#  );
+##my %kr_aliases;
+###  ( $alias => $session_ref,
+###    ...,
+###  );
+
+has 'kr_aliases' => (
+	isa => 'HashRef'
+	, is => 'ro'
+	, default => sub { +{} }
+);
 
 my %kr_ses_to_alias;
 #  ( $session_ref =>
@@ -20,16 +26,15 @@ my %kr_ses_to_alias;
 #    ...,
 #  );
 
-sub _data_alias_initialize {
-  $POE::Kernel::poe_kernel->[KR_ALIASES] = \%kr_aliases;
-}
-
 ### End-run leak checking.  Returns true if finalization was ok, or
 ### false if it failed.
-
 sub _data_alias_finalize {
+	my $self = shift;
+
   my $finalized_ok = 1;
-  while (my ($alias, $ses) = each(%kr_aliases)) {
+	my $kr_aliases = $self->kr_aliases;
+
+  while (my ($alias, $ses) = each(%$kr_aliases)) {
     _warn "!!! Leaked alias: $alias = $ses\n";
     $finalized_ok = 0;
   }
@@ -55,8 +60,9 @@ sub _data_alias_finalize {
 
 sub _data_alias_add {
   my ($self, $session, $alias) = @_;
+
   $self->_data_ses_refcount_inc($session);
-  $kr_aliases{$alias} = $session;
+  $self->kr_aliases->{$alias} = $session;
   $kr_ses_to_alias{$session}->{$alias} = 1;
 }
 
@@ -67,7 +73,7 @@ sub _data_alias_add {
 
 sub _data_alias_remove {
   my ($self, $session, $alias) = @_;
-  delete $kr_aliases{$alias};
+  delete $self->kr_aliases->{$alias};
   delete $kr_ses_to_alias{$session}->{$alias};
   $self->_data_ses_refcount_dec($session);
 }
@@ -87,8 +93,9 @@ sub _data_alias_clear_session {
 
 sub _data_alias_resolve {
   my ($self, $alias) = @_;
-  return undef unless exists $kr_aliases{$alias};
-  return $kr_aliases{$alias};
+	my $kr_aliases = $self->kr_aliases;
+  return undef unless exists $kr_aliases->{$alias};
+  return $kr_aliases->{$alias};
 }
 
 ### Return a list of aliases for a session.

@@ -78,7 +78,7 @@ sub new {
 			$self->kr_sessions  # KR_SESSIONS - from POE::Resource::Sessions
 			, $self->kr_filenos   # KR_FILENOS - from POE::Resource::FileHandles
 			, $self->kr_signals   # KR_SIGNALS - from POE::Resource::Signals
-			, undef               # KR_ALIASES - from POE::Resource::Aliases
+			, $self->kr_aliases   # KR_ALIASES - from POE::Resource::Aliases
 			, \$kr_active_session # KR_ACTIVE_SESSION
 			, $self->kr_queue     # KR_QUEUE - reference to an object
 			, $self->ID           # KR_ID
