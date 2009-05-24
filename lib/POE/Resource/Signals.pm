@@ -4,6 +4,7 @@ use strict;
 
 use POE::Helpers::Error qw( _warn _trap );
 use POE::Helpers::Constants qw(
+	:signal_types
 	TRACE_SIGNALS
 	USE_SIGCHLD
 	RUNNING_IN_HELL
@@ -80,9 +81,6 @@ my $kr_child_procs = exists($INC{'Apache.pm'}) ? 0 : ( USE_SIGCHLD ? 0 : 1 );
 # the ones that UNIX defaults to killing processes with.  Thus STOP is
 # not terminal.
 
-sub SIGTYPE_BENIGN      () { 0x00 }
-sub SIGTYPE_TERMINAL    () { 0x01 }
-sub SIGTYPE_NONMASKABLE () { 0x02 }
 
 my %_signal_types = (
   QUIT => SIGTYPE_TERMINAL,

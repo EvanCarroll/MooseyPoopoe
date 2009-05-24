@@ -30,6 +30,8 @@ use Sub::Exporter -setup => {
 		KR_SESSIONS KR_FILENOS KR_SIGNALS KR_ALIASES KR_ACTIVE_SESSION
 		KR_QUEUE KR_ID KR_SESSION_IDS KR_SID_SEQ KR_EXTRA_REFS
 		KR_SIZE KR_RUN KR_ACTIVE_EVENT KR_PIDS
+			
+		SIGTYPE_BENIGN SIGTYPE_TERMINAL SIGTYPE_NONMASKABLE
 	) ]
 
 	, groups => {
@@ -41,10 +43,6 @@ use Sub::Exporter -setup => {
 			ET_POST  ET_CALL  ET_START  ET_STOP  ET_SIGNAL
 			ET_GC  ET_PARENT  ET_CHILD  ET_SCPOLL  ET_ALARM
 			ET_SELECT  ET_STAT  ET_SIGCLD  ET_MASK_USER
-		)]
-		, event_index => [qw(
-			EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
-			EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
 		)]
 		, child    => [qw(
 			CHILD_GAIN CHILD_LOSE CHILD_CREATE
@@ -64,6 +62,13 @@ use Sub::Exporter -setup => {
 			KR_QUEUE KR_ID KR_SESSION_IDS KR_SID_SEQ KR_EXTRA_REFS
 			KR_SIZE KR_RUN KR_ACTIVE_EVENT KR_PIDS
 		)]
+		, event_index => [qw(
+			EV_SESSION EV_SOURCE EV_NAME EV_TYPE EV_ARGS
+			EV_OWNER_FILE EV_OWNER_LINE EV_TIME EV_SEQ
+		)]
+		, signal_types => [qw(
+			SIGTYPE_BENIGN SIGTYPE_TERMINAL SIGTYPE_NONMASKABLE
+		)]
 	}
 };
 
@@ -74,6 +79,7 @@ use constant {
 	MODE_RD   => 0 # read
 	, MODE_WR => 1 # write
 	, MODE_EX => 2 # exception/expedite
+
 
 	## These are the names of POE's internal events.
 	## Used in Resources/Sessions
@@ -86,6 +92,7 @@ use constant {
 	, EN_START   => '_start'
 	, EN_STAT    => '_stat_tick'
 	, EN_STOP    => '_stop'
+
 	
 	## EVENTS themselves
 	, EV_SESSION    => 0  # $destination_session,
@@ -99,6 +106,7 @@ use constant {
 	, EV_OWNER_LINE => 6  # $caller_line_where_enqueued,
 	, EV_TIME       => 7  # Maintained by POE::Queue (create time)
 	, EV_SEQ        => 8  # Maintained by POE::Queue (unique event ID)
+
 
 	## These are POE's event classes (types).  They often shadow the event
 	## names themselves, but they can encompass a large group of events.
@@ -120,6 +128,13 @@ use constant {
 	, ET_STAT   => 0x0800  # Statistics gathering
 	, ET_SIGCLD => 0x1000  # sig_child() events.
 
+
+	## Ued in Resources/Signals
+	, SIGTYPE_BENIGN      => 0x00
+	, SIGTYPE_TERMINAL    => 0x01
+	, SIGTYPE_NONMASKABLE => 0x02
+
+
 	# These are ways a child may come or go.
 	# TODO - It would be useful to split 'lose' into two types.  One to
 	# indicate that the child has stopped, and one to indicate that it was
@@ -128,6 +143,7 @@ use constant {
 	, CHILD_GAIN   => 'gain'   # The session was inherited from another.
 	, CHILD_LOSE   => 'lose'   # The session is no longer this one's child.
 	, CHILD_CREATE => 'create' # The session was created as a child of this.
+
 	
 	# Kernel structure.  This is the root of a large data tree.  Dumping
 	# $poe_kernel with Data::Dumper or something will show most of the
